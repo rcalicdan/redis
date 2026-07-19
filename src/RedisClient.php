@@ -32,6 +32,10 @@ final class RedisClient
         RedisConfig|array|string $config,
         int $minConnections = 1,
         int $maxConnections = 10,
+        int $idleTimeout = 60,
+        int $maxLifetime = 3600,
+        int $maxWaiters = 0,
+        float $acquireTimeout = 10.0,
         ?ConnectorInterface $connector = null
     ) {
         $redisConfig = match (true) {
@@ -40,7 +44,29 @@ final class RedisClient
             \is_string($config) => RedisConfig::fromUri($config),
         };
 
-        $this->pool = new PoolManager($redisConfig, $maxConnections, $minConnections, $connector);
+        $this->pool = new PoolManager(
+            config: $redisConfig,
+            maxSize: $maxConnections,
+            minSize: $minConnections,
+            idleTimeout: $idleTimeout,
+            maxLifetime: $maxLifetime,
+            maxWaiters: $maxWaiters,
+            acquireTimeout: $acquireTimeout,
+            connector: $connector
+        );
+    }
+
+    /**
+     * @var array<string, bool|float|int>
+     */
+    public array $stats {
+        get {
+            if ($this->pool === null) {
+                return [];
+            }
+
+            return $this->pool->stats;
+        }
     }
 
     /**
@@ -71,6 +97,18 @@ final class RedisClient
         ;
 
         return Promise::propagateCancellation($promise);
+    }
+
+    /**
+     * @return PromiseInterface<array<string, int>>
+     */
+    public function healthCheck(): PromiseInterface
+    {
+        if ($this->pool === null) {
+            return Promise::rejected(new ConnectionException('Client is closed'));
+        }
+
+        return $this->pool->healthCheck();
     }
 
     /**
@@ -132,7 +170,6 @@ final class RedisClient
      * Use Promise::timeout() to wrap this if you don't want to wait forever.
      *
      * @param string|array<string> $keys
-     * @param float|int $timeout
      *
      * @return PromiseInterface<array<int, string>|null>
      */

@@ -37,7 +37,13 @@
         "test": "./vendor/bin/pest",
         "format": "./vendor/bin/pint",
         "format-test": "./vendor/bin/pint --test",
-        "analyze": "./vendor/bin/phpstan analyse"
+        "analyze": "./vendor/bin/phpstan analyse",
+        "generate-certs": [
+            "mkdir -p tests/Fixtures/ssl",
+            "openssl req -newkey rsa:2048 -nodes -keyout tests/Fixtures/ssl/server-key.pem -x509 -days 365 -out tests/Fixtures/ssl/server-cert.pem -subj \"/CN=127.0.0.1\"",
+            "cp tests/Fixtures/ssl/server-cert.pem tests/Fixtures/ssl/ca.pem",
+            "chmod 644 tests/Fixtures/ssl/*"
+        ]
     },
     "config": {
         "allow-plugins": {

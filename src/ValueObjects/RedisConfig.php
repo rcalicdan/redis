@@ -25,6 +25,10 @@ final readonly class RedisConfig
         public int $database = 0,
         public int $connectTimeout = 10,
         public bool $ssl = false,
+        public ?string $sslCa = null,
+        public ?string $sslCert = null,
+        public ?string $sslKey = null,
+        public bool $sslVerify = false,
     ) {
     }
 
@@ -45,6 +49,11 @@ final readonly class RedisConfig
         $connectTimeout = isset($config['connect_timeout']) && is_numeric($config['connect_timeout']) ? (int) $config['connect_timeout'] : 10;
         $ssl = isset($config['ssl']) && \is_scalar($config['ssl']) ? (bool) $config['ssl'] : false;
 
+        $sslCa = isset($config['ssl_ca']) && \is_string($config['ssl_ca']) ? $config['ssl_ca'] : null;
+        $sslCert = isset($config['ssl_cert']) && \is_string($config['ssl_cert']) ? $config['ssl_cert'] : null;
+        $sslKey = isset($config['ssl_key']) && \is_string($config['ssl_key']) ? $config['ssl_key'] : null;
+        $sslVerify = isset($config['ssl_verify']) && \is_scalar($config['ssl_verify']) ? (bool) $config['ssl_verify'] : false;
+
         return new self(
             host: $host,
             port: $port,
@@ -53,6 +62,10 @@ final readonly class RedisConfig
             database: $database,
             connectTimeout: $connectTimeout,
             ssl: $ssl,
+            sslCa: $sslCa,
+            sslCert: $sslCert,
+            sslKey: $sslKey,
+            sslVerify: $sslVerify,
         );
     }
 
@@ -91,9 +104,11 @@ final readonly class RedisConfig
             parse_str($parts['query'], $query);
         }
 
-        $connectTimeout = isset($query['connect_timeout']) && is_numeric($query['connect_timeout'])
-            ? (int) $query['connect_timeout']
-            : 10;
+        $connectTimeout = isset($query['connect_timeout']) && is_numeric($query['connect_timeout']) ? (int) $query['connect_timeout'] : 10;
+        $sslCa = isset($query['ssl_ca']) && \is_string($query['ssl_ca']) ? $query['ssl_ca'] : null;
+        $sslCert = isset($query['ssl_cert']) && \is_string($query['ssl_cert']) ? $query['ssl_cert'] : null;
+        $sslKey = isset($query['ssl_key']) && \is_string($query['ssl_key']) ? $query['ssl_key'] : null;
+        $sslVerify = isset($query['ssl_verify']) ? filter_var($query['ssl_verify'], FILTER_VALIDATE_BOOLEAN) : false;
 
         return new self(
             host: (string) $parts['host'],
@@ -103,6 +118,10 @@ final readonly class RedisConfig
             database: $database,
             connectTimeout: $connectTimeout,
             ssl: $ssl,
+            sslCa: $sslCa,
+            sslCert: $sslCert,
+            sslKey: $sslKey,
+            sslVerify: $sslVerify,
         );
     }
 

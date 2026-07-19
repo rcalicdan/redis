@@ -62,9 +62,28 @@ final class Connection
         $connectPromise = new Promise();
         $this->ctx->connectPromise = $connectPromise;
 
+        $tls = false;
+        if ($this->config->ssl) {
+            $tls = [
+                'verify_peer' => $this->config->sslVerify,
+                'verify_peer_name' => $this->config->sslVerify,
+                'allow_self_signed' => ! $this->config->sslVerify,
+            ];
+
+            if ($this->config->sslCa !== null) {
+                $tls['cafile'] = $this->config->sslCa;
+            }
+            if ($this->config->sslCert !== null) {
+                $tls['local_cert'] = $this->config->sslCert;
+            }
+            if ($this->config->sslKey !== null) {
+                $tls['local_pk'] = $this->config->sslKey;
+            }
+        }
+
         $connector = $this->connector ?? new Connector([
             'tcp' => true,
-            'tls' => $this->config->ssl,
+            'tls' => $tls,
             'timeout' => $this->config->connectTimeout,
         ]);
 
@@ -83,6 +102,9 @@ final class Connection
         return $connectPromise;
     }
 
+    /**
+     * @return PromiseInterface<mixed>
+     */
     public function enqueue(CommandInterface $command): PromiseInterface
     {
         if ($this->ctx->state === ConnectionState::CLOSED) {

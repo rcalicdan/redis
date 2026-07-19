@@ -1,0 +1,45 @@
+services:
+  redis:
+    image: redis:7
+    environment:
+      REDIS_PASSWORD: root_password
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass root_password
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "root_password", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis_ssl:
+    image: redis:7
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./tests/Fixtures/ssl/ca.pem:/tmp/ssl/ca.pem:ro
+      - ./tests/Fixtures/ssl/server-cert.pem:/tmp/ssl/server-cert.pem:ro
+      - ./tests/Fixtures/ssl/server-key.pem:/tmp/ssl/server-key.pem:ro
+    command: >
+      bash -c "
+      mkdir -p /tmp/redis-ssl &&
+      cp /tmp/ssl/ca.pem /tmp/redis-ssl/ca.pem &&
+      cp /tmp/ssl/server-cert.pem /tmp/redis-ssl/server-cert.pem &&
+      cp /tmp/ssl/server-key.pem /tmp/redis-ssl/server-key.pem &&
+      chmod 644 /tmp/redis-ssl/ca.pem &&
+      chmod 644 /tmp/redis-ssl/server-cert.pem &&
+      chmod 600 /tmp/redis-ssl/server-key.pem &&
+      exec redis-server 
+      --requirepass root_password
+      --tls-port 6379 
+      --port 0 
+      --tls-cert-file /tmp/redis-ssl/server-cert.pem 
+      --tls-key-file /tmp/redis-ssl/server-key.pem 
+      --tls-ca-cert-file /tmp/redis-ssl/ca.pem
+      --tls-auth-clients no
+      "
+    healthcheck:
+      test: ["CMD", "redis-cli", "--tls", "--cert", "/tmp/redis-ssl/server-cert.pem", "--key", "/tmp/redis-ssl/server-key.pem", "--cacert", "/tmp/redis-ssl/ca.pem", "-a", "root_password", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
