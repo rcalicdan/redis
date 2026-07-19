@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd" bootstrap="vendor/autoload.php" colors="true">
+    <testsuites>
+        <testsuite name="Test Suite">
+            <directory suffix="Test.php">./tests</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>src</directory>
+        </include>
+    </source>
+    <php>
+        <env name="MYSQL_HOST" value="127.0.0.1" force="true"/>
+        <env name="MYSQL_SSL_HOST" value="127.0.0.1" force="true"/>
+        <env name="MYSQL_DATABASE" value="test" force="true"/>
+        <env name="MYSQL_USERNAME" value="test_user" force="true"/>
+        <env name="MYSQL_PASSWORD" value="test_password" force="true"/>
+        <env name="MYSQL_PORT" value="3310" force="false"/>
+        <env name="MYSQL_SSL_PORT" value="3307" force="false"/>
+    </php>
+</phpunit>
