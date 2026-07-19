@@ -26,6 +26,7 @@ use Throwable;
 final class Connection
 {
     private readonly ConnectionContext $ctx;
+
     private readonly CommandHandler $commandHandler;
 
     public function __construct(
@@ -162,6 +163,7 @@ final class Connection
     {
         if ($this->ctx->state !== ConnectionState::CONNECTING) {
             $socket->close();
+
             return;
         }
 

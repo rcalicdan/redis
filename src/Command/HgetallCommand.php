@@ -6,8 +6,8 @@ namespace Hibla\Redis\Command;
 
 final class HgetallCommand extends AbstractCommand
 {
-    public string $id { 
-        get => 'HGETALL'; 
+    public string $id {
+        get => 'HGETALL';
     }
 
     public function parseResponse(mixed $data): mixed

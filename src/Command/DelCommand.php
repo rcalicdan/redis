@@ -6,7 +6,7 @@ namespace Hibla\Redis\Command;
 
 final class DelCommand extends AbstractCommand
 {
-    public string $id { 
-        get => 'DEL'; 
+    public string $id {
+        get => 'DEL';
     }
 }

@@ -24,6 +24,10 @@ final class RedisClient
 {
     private ?PoolManager $pool = null;
 
+    private bool $isClosing = false;
+
+    private ?PromiseInterface $closePromise = null;
+
     public function __construct(
         RedisConfig|array|string $config,
         int $minConnections = 1,
@@ -40,6 +44,8 @@ final class RedisClient
     }
 
     /**
+     * Executes any CommandInterface.
+     *
      * @return PromiseInterface<mixed>
      */
     public function executeCommand(CommandInterface $command): PromiseInterface
@@ -54,29 +60,32 @@ final class RedisClient
         $promise = $pool->get()
             ->then(function (Connection $conn) use ($command, &$connection): PromiseInterface {
                 $connection = $conn;
+
                 return $conn->enqueue($command);
             })
             ->finally(function () use ($pool, &$connection): void {
                 if ($connection !== null) {
                     $pool->release($connection);
                 }
-            });
+            })
+        ;
 
         return Promise::propagateCancellation($promise);
     }
 
     /**
-     * Ping the server.
-     * @return PromiseInterface<string> Resolves with "PONG" or the provided message.
+     * @return PromiseInterface<string> "PONG"
      */
     public function ping(?string $message = null): PromiseInterface
     {
         $args = $message === null ? [] : [$message];
+
         return $this->executeCommand(new PingCommand($args));
     }
 
     /**
      * Get the value of a key.
+     *
      * @return PromiseInterface<string|null>
      */
     public function get(string $key): PromiseInterface
@@ -85,8 +94,7 @@ final class RedisClient
     }
 
     /**
-     * Set the string value of a key.
-     * @return PromiseInterface<string|null> "OK" on success.
+     * @return PromiseInterface<string> "OK" on success
      */
     public function set(string $key, mixed $value): PromiseInterface
     {
@@ -94,8 +102,7 @@ final class RedisClient
     }
 
     /**
-     * Delete one or more keys.
-     * @return PromiseInterface<int> The number of keys that were removed.
+     * @return PromiseInterface<int> Number of deleted keys
      */
     public function del(string ...$keys): PromiseInterface
     {
@@ -104,6 +111,7 @@ final class RedisClient
 
     /**
      * Get the values of all the given keys.
+     *
      * @return PromiseInterface<array<int, string|null>>
      */
     public function mget(string ...$keys): PromiseInterface
@@ -112,8 +120,7 @@ final class RedisClient
     }
 
     /**
-     * Get all the fields and values in a hash.
-     * @return PromiseInterface<array<string, string>> Associative array of field => value
+     * @return PromiseInterface<array<string, string>>
      */
     public function hgetall(string $key): PromiseInterface
     {
@@ -125,7 +132,8 @@ final class RedisClient
      * Use Promise::timeout() to wrap this if you don't want to wait forever.
      *
      * @param string|array<string> $keys
-     * @param float|int $timeout 0 for no timeout
+     * @param float|int $timeout
+     *
      * @return PromiseInterface<array<int, string>|null>
      */
     public function blpop(string|array $keys, float|int $timeout = 0): PromiseInterface
@@ -136,10 +144,48 @@ final class RedisClient
         return $this->executeCommand(new BlpopCommand($args));
     }
 
+    /**
+     * @return PromiseInterface<void>
+     */
+    public function closeAsync(float $timeout = 0.0): PromiseInterface
+    {
+        if ($this->pool === null) {
+            return Promise::resolved();
+        }
+
+        if ($this->closePromise !== null) {
+            return $this->closePromise;
+        }
+
+        $pool = $this->pool;
+
+        $this->closePromise = $pool->closeAsync($timeout)
+            ->then(function (): void {
+                if ($this->isClosing) {
+                    return;
+                }
+
+                $this->pool = null;
+                $this->closePromise = null;
+            })
+        ;
+
+        return $this->closePromise;
+    }
+
     public function close(): void
     {
-        $this->pool?->close();
+        if ($this->pool === null) {
+            return;
+        }
+
+        $this->isClosing = true;
+
+        $this->pool->close();
         $this->pool = null;
+        $this->closePromise = null;
+
+        $this->isClosing = false;
     }
 
     public function __destruct()

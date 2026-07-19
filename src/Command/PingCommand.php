@@ -6,7 +6,7 @@ namespace Hibla\Redis\Command;
 
 final class PingCommand extends AbstractCommand
 {
-    public string $id { 
-        get => 'PING'; 
+    public string $id {
+        get => 'PING';
     }
 }
