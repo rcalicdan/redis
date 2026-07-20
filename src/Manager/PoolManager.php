@@ -392,12 +392,16 @@ final class PoolManager
         /** @var Promise<Connection> $promise */
         $promise = new Promise();
 
-        Connection::create($this->config, $this->connector)->then(
+        $connPromise = Connection::create($this->config, $this->connector);
+
+        $connPromise->then(
             function (Connection $conn) use ($promise): void {
                 if ($this->isClosing) {
                     $conn->close();
                     $this->activeConnections--;
-                    $promise->reject(new PoolException('Pool closing or request cancelled'));
+                    if (! $promise->isSettled()) {
+                        $promise->reject(new PoolException('Pool closing or request cancelled'));
+                    }
                     $this->checkShutdownComplete();
 
                     return;
@@ -413,14 +417,20 @@ final class PoolManager
                     return;
                 }
 
-                $promise->resolve($conn);
+                if (! $promise->isSettled()) {
+                    $promise->resolve($conn);
+                }
             },
             function (Throwable $e) use ($promise): void {
                 $this->activeConnections--;
-                $promise->reject($e);
+                if (! $promise->isSettled()) {
+                    $promise->reject($e);
+                }
                 $this->checkShutdownComplete();
             }
         );
+
+        Promise::forwardCancellation($promise, $connPromise);
 
         return $promise;
     }
@@ -439,12 +449,16 @@ final class PoolManager
 
             $this->activeConnections++;
 
-            Connection::create($this->config, $this->connector)->then(
+            $connPromise = Connection::create($this->config, $this->connector);
+
+            $connPromise->then(
                 function (Connection $conn) use ($waiter): void {
                     if ($this->isClosing) {
                         $conn->close();
                         $this->activeConnections--;
-                        $waiter->reject(new PoolException('Pool is being closed'));
+                        if (! $waiter->isSettled()) {
+                            $waiter->reject(new PoolException('Pool is being closed'));
+                        }
                         $this->checkShutdownComplete();
 
                         return;
@@ -460,14 +474,20 @@ final class PoolManager
                         return;
                     }
 
-                    $waiter->resolve($conn);
+                    if (! $waiter->isSettled()) {
+                        $waiter->resolve($conn);
+                    }
                 },
                 function (Throwable $e) use ($waiter): void {
                     $this->activeConnections--;
-                    $waiter->reject($e);
+                    if (! $waiter->isSettled()) {
+                        $waiter->reject($e);
+                    }
                     $this->checkShutdownComplete();
                 }
             );
+
+            Promise::forwardCancellation($waiter, $connPromise);
         }
     }
 

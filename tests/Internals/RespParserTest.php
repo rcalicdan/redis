@@ -231,7 +231,8 @@ it('drains multiple packets perfectly without bleeding bytes', function () {
 
     $result2 = null;
     expect($parser->parse($result2))->toBeTrue()
-        ->and($result2)->toBe('BAR');
+        ->and($result2)->toBe('BAR')
+    ;
 
     $result3 = null;
     expect($parser->parse($result3))->toBeFalse();

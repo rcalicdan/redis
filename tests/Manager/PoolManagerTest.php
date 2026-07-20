@@ -14,12 +14,18 @@ it('initializes asynchronously with the minimum number of connections', function
     $pool = new PoolManager($config, minSize: 2, maxSize: 5);
 
     try {
-        await(delay(0.05));
+        for ($i = 0; $i < 40; $i++) {
+            if ($pool->stats['pooled_connections'] === 2) {
+                break;
+            }
+            await(delay(0.05));
+        }
 
         $stats = $pool->stats;
         expect($stats['total_connections'])->toBe(2)
             ->and($stats['pooled_connections'])->toBe(2)
-            ->and($stats['active_connections'])->toBe(0);
+            ->and($stats['active_connections'])->toBe(0)
+        ;
     } finally {
         $pool->close();
     }
@@ -37,13 +43,15 @@ it('respects maximum connections and queues waiters', function () {
 
         expect($promise3->isPending())->toBeTrue()
             ->and($pool->stats['total_connections'])->toBe(2)
-            ->and($pool->stats['waiting_requests'])->toBe(1);
+            ->and($pool->stats['waiting_requests'])->toBe(1)
+        ;
 
         $pool->release($conn1);
 
         $conn3 = await($promise3);
         expect($conn3)->toBe($conn1)
-            ->and($pool->stats['waiting_requests'])->toBe(0);
+            ->and($pool->stats['waiting_requests'])->toBe(0)
+        ;
     } finally {
         $pool->close();
     }
@@ -55,11 +63,11 @@ it('rejects with PoolException when maxWaiters is exceeded', function () {
 
     try {
         $conn1 = await($pool->get());
-        
-        $promise2 = $pool->get(); 
-        
-        try {  
-            await($pool->get()); 
+
+        $promise2 = $pool->get();
+
+        try {
+            await($pool->get());
             $this->fail('Expected PoolException to be thrown');
         } catch (PoolException $e) {
             expect($e->getMessage())->toContain('Connection pool exhausted. Max waiters limit (1) reached.');
@@ -93,15 +101,16 @@ it('discards closed connections and spins up replacements', function () {
 
     try {
         $conn1 = await($pool->get());
-        
+
         $conn1->close();
-        
+
         $pool->release($conn1);
-    
+
         $conn2 = await($pool->get());
-        
+
         expect($conn2)->not->toBe($conn1)
-            ->and($conn2->isClosed())->toBeFalse();
+            ->and($conn2->isClosed())->toBeFalse()
+        ;
     } finally {
         $pool->close();
     }
@@ -117,14 +126,16 @@ it('shuts down gracefully, waiting for active connections to be released', funct
         $closePromise = $pool->closeAsync();
 
         expect($closePromise->isPending())->toBeTrue()
-            ->and($pool->stats['is_graceful_shutdown'])->toBeTrue();
+            ->and($pool->stats['is_graceful_shutdown'])->toBeTrue()
+        ;
 
         $pool->release($conn1);
 
         await($closePromise);
 
         expect($pool->stats['total_connections'])->toBe(0)
-            ->and($pool->stats['active_connections'])->toBe(0);
+            ->and($pool->stats['active_connections'])->toBe(0)
+        ;
     } finally {
         $pool->close();
     }
@@ -135,13 +146,19 @@ it('performs health checks on pooled idle connections', function () {
     $pool = new PoolManager($config, minSize: 2, maxSize: 2);
 
     try {
-        await(delay(0.1));
+        for ($i = 0; $i < 40; $i++) {
+            if ($pool->stats['pooled_connections'] === 2) {
+                break;
+            }
+            await(delay(0.05));
+        }
 
         $stats = await($pool->healthCheck());
 
         expect($stats['total_checked'])->toBe(2)
             ->and($stats['healthy'])->toBe(2)
-            ->and($stats['unhealthy'])->toBe(0);
+            ->and($stats['unhealthy'])->toBe(0)
+        ;
     } finally {
         $pool->close();
     }

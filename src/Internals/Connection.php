@@ -89,15 +89,23 @@ final class Connection
 
         $uri = ($this->config->ssl ? 'tls://' : 'tcp://') . $this->config->host . ':' . $this->config->port;
 
-        $connector->connect($uri)->then(
+        $socketPromise = $connector->connect($uri);
+
+        $socketPromise->then(
             $this->handleSocketConnected(...),
             function (Throwable $e) use ($connectPromise): void {
                 $this->ctx->state = ConnectionState::CLOSED;
-                $connectPromise->reject(
-                    new ConnectionException('Failed to connect to Redis: ' . $e->getMessage(), (int) $e->getCode(), $e)
-                );
+                if (! $connectPromise->isSettled()) {
+                    $connectPromise->reject(
+                        new ConnectionException('Failed to connect to Redis: ' . $e->getMessage(), (int) $e->getCode(), $e)
+                    );
+                }
             }
         );
+
+        Promise::forwardCancellation($connectPromise, $socketPromise);
+
+        $connectPromise->onCancel($this->close(...));
 
         return $connectPromise;
     }
@@ -136,6 +144,13 @@ final class Connection
         if ($this->ctx->socket !== null) {
             $this->ctx->socket->close();
             $this->ctx->socket = null;
+        }
+
+        if ($this->ctx->connectPromise !== null) {
+            if (! $this->ctx->connectPromise->isSettled()) {
+                $this->ctx->connectPromise->reject(new ConnectionException('Connection was closed'));
+            }
+            $this->ctx->connectPromise = null;
         }
 
         $this->commandHandler->failPending(new ConnectionException('Connection was closed'));
@@ -220,7 +235,7 @@ final class Connection
                 $this->resolveConnectionPromise(...),
                 function (Throwable $e): void {
                     $this->close();
-                    if ($this->ctx->connectPromise !== null) {
+                    if ($this->ctx->connectPromise !== null && ! $this->ctx->connectPromise->isSettled()) {
                         $this->ctx->connectPromise->reject(
                             new ConnectionException('Redis initialization failed: ' . $e->getMessage())
                         );
@@ -235,7 +250,9 @@ final class Connection
         if ($this->ctx->connectPromise !== null) {
             $promise = $this->ctx->connectPromise;
             $this->ctx->connectPromise = null;
-            $promise->resolve($this);
+            if (! $promise->isSettled()) {
+                $promise->resolve($this);
+            }
 
             $this->commandHandler->flush();
         }

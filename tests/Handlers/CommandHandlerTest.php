@@ -175,5 +175,6 @@ it('rejects all pending requests when failPending is called', function () {
         ->and($promise1->isRejected())->toBeTrue()
         ->and($promise1->reason)->toBe($exception)
         ->and($promise2->isRejected())->toBeTrue()
-        ->and($promise2->reason)->toBe($exception);
+        ->and($promise2->reason)->toBe($exception)
+    ;
 });

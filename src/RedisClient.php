@@ -82,12 +82,15 @@ final class RedisClient
 
         $pool = $this->pool;
         $connection = null;
+        $innerPromise = null;
 
         $promise = $pool->get()
-            ->then(function (Connection $conn) use ($command, &$connection): PromiseInterface {
+            ->then(function (Connection $conn) use ($command, &$connection, &$innerPromise): PromiseInterface {
                 $connection = $conn;
 
-                return $conn->enqueue($command);
+                $innerPromise = $conn->enqueue($command);
+
+                return $innerPromise;
             })
             ->finally(function () use ($pool, &$connection): void {
                 if ($connection !== null) {
@@ -95,6 +98,8 @@ final class RedisClient
                 }
             })
         ;
+
+        Promise::forwardCancellation($promise, $innerPromise);
 
         return Promise::propagateCancellation($promise);
     }

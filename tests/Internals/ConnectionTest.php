@@ -86,7 +86,7 @@ it('rejects pending promises when the connection is closed abruptly', function (
     $connection = await(Connection::create($config));
 
     try {
-        $connection->enqueue(new BlpopCommand(['empty_list', 0]))->catch(fn() => null);
+        $connection->enqueue(new BlpopCommand(['empty_list', 0]))->catch(fn () => null);
 
         $pendingPromise = $connection->enqueue(new GetCommand(['some_key']));
         $connection->close();
@@ -124,7 +124,8 @@ it('fails to connect if authentication fails', function () {
         $this->fail('Expected ConnectionException to be thrown');
     } catch (ConnectionException $e) {
         expect($e->getMessage())->toContain('Redis initialization failed')
-            ->and($e->getMessage())->toContain('WRONGPASS');
+            ->and($e->getMessage())->toContain('WRONGPASS')
+        ;
     }
 });
 
@@ -137,7 +138,8 @@ it('fails to connect if database selection fails', function () {
         $this->fail('Expected ConnectionException to be thrown');
     } catch (ConnectionException $e) {
         expect($e->getMessage())->toContain('Redis initialization failed')
-            ->and($e->getMessage())->toContain('ERR DB index is out of range');
+            ->and($e->getMessage())->toContain('ERR DB index is out of range')
+        ;
     }
 });
 
@@ -150,21 +152,21 @@ it('fails to connect to a closed port or non-existent server', function () {
         $this->fail('Expected ConnectionException to be thrown');
     } catch (ConnectionException $e) {
         expect($e->getMessage())->toContain('Failed to connect to Redis')
-            ->and($e->getMessage())->toContain('Connection refused');
+            ->and($e->getMessage())->toContain('Connection refused')
+        ;
     }
 });
-
 
 it('rejects pending promises when the server hangs up the connection', function () {
     $config = getConfig();
     $connection = await(Connection::create($config));
 
-    $quitCommand = new class() extends AbstractCommand {
+    $quitCommand = new class () extends AbstractCommand {
         public string $id = 'QUIT';
     };
 
     try {
-        $connection->enqueue($quitCommand)->catch(fn() => null);
+        $connection->enqueue($quitCommand)->catch(fn () => null);
 
         $pendingPromise = $connection->enqueue(new PingCommand());
 
@@ -180,16 +182,17 @@ it('rejects pending promises when the server hangs up the connection', function 
 it('garbage collects the connection cleanly after it is closed', function () {
     $config = getConfig();
     $connection = await(Connection::create($config));
-    
-    $weakRef = \WeakReference::create($connection);
-    
+
+    $weakRef = WeakReference::create($connection);
+
     expect($weakRef->get())->not->toBeNull()
-        ->and($weakRef->get()->isClosed())->toBeFalse();
+        ->and($weakRef->get()->isClosed())->toBeFalse()
+    ;
 
     $connection->close();
-    
+
     unset($connection);
-    
+
     expect($weakRef->get())->toBeNull();
 });
 
