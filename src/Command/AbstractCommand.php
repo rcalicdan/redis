@@ -8,6 +8,10 @@ use Hibla\Redis\Interfaces\CommandInterface;
 
 /**
  * Base class for all Redis commands.
+ *
+ * @template-covariant TResponse
+ *
+ * @implements CommandInterface<TResponse>
  */
 abstract class AbstractCommand implements CommandInterface
 {
@@ -36,9 +40,12 @@ abstract class AbstractCommand implements CommandInterface
 
     /**
      * {@inheritDoc}
+     *
+     * @return TResponse
      */
     public function parseResponse(mixed $data): mixed
     {
+        /** @var TResponse */
         return $data; // Pass-through by default
     }
 }

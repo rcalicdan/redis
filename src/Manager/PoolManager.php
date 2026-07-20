@@ -232,6 +232,9 @@ final class PoolManager
         $this->pool->enqueue($connection);
     }
 
+    /**
+     * @return PromiseInterface<void>
+     */
     public function closeAsync(float $timeout = 0.0): PromiseInterface
     {
         if ($this->isClosing) {
@@ -256,17 +259,22 @@ final class PoolManager
             $this->removeConnection($this->pool->dequeue(), false);
         }
 
-        $this->shutdownPromise = new Promise();
+        /** @var Promise<void> $promise */
+        $promise = new Promise();
+        $this->shutdownPromise = $promise;
+        
         $this->checkShutdownComplete();
 
-        if ($timeout > 0.0 && $this->shutdownPromise !== null) {
+        $activeShutdownPromise = $this->shutdownPromise;
+
+        if ($timeout > 0.0 && $activeShutdownPromise !== null) {
             $timerId = Loop::addTimer($timeout, function (): void {
                 if ($this->shutdownPromise !== null && $this->shutdownPromise->isPending()) {
                     $this->close();
                 }
             });
 
-            $this->shutdownPromise->finally(static function () use ($timerId): void {
+            $activeShutdownPromise->finally(static function () use ($timerId): void {
                 Loop::cancelTimer($timerId);
             })->catch(static fn () => null);
         }
@@ -400,7 +408,7 @@ final class PoolManager
                     $conn->close();
                     $this->activeConnections--;
                     if (! $promise->isSettled()) {
-                        $promise->reject(new PoolException('Pool closing or request cancelled'));
+                        $promise->reject(new PoolException('Pool closed forcefully'));
                     }
                     $this->checkShutdownComplete();
 
@@ -466,7 +474,7 @@ final class PoolManager
                         $conn->close();
                         $this->activeConnections--;
                         if (! $waiter->isSettled()) {
-                            $waiter->reject(new PoolException('Pool is being closed'));
+                            $waiter->reject(new PoolException('Pool closed forcefully'));
                         }
                         $this->checkShutdownComplete();
 

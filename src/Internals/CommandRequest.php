@@ -16,7 +16,7 @@ final readonly class CommandRequest
 {
     /**
      * @param Promise<mixed> $promise The promise to resolve/reject when the command completes.
-     * @param CommandInterface $command The Redis command to execute and parse.
+     * @param CommandInterface<mixed> $command The Redis command to execute and parse.
      */
     public function __construct(
         public Promise $promise,

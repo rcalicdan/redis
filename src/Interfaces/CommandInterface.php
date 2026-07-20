@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hibla\Redis\Interfaces;
 
+/**
+ * @template-covariant TResponse
+ */
 interface CommandInterface
 {
     /**
@@ -27,6 +30,8 @@ interface CommandInterface
 
     /**
      * Parses the raw RESP response from the server into a PHP-friendly format.
+     *
+     * @return TResponse
      */
     public function parseResponse(mixed $data): mixed;
 }

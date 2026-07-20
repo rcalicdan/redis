@@ -26,8 +26,14 @@ final class RedisClient
 
     private bool $isClosing = false;
 
+    /**
+     * @var PromiseInterface<void>|null
+     */
     private ?PromiseInterface $closePromise = null;
 
+    /**
+     * @param RedisConfig|array<string, mixed>|string $config
+     */
     public function __construct(
         RedisConfig|array|string $config,
         int $minConnections = 0,
@@ -72,7 +78,11 @@ final class RedisClient
     /**
      * Executes any CommandInterface.
      *
-     * @return PromiseInterface<mixed>
+     * @template TReturn
+     *
+     * @param CommandInterface<TReturn> $command
+     *
+     * @return PromiseInterface<TReturn>
      */
     public function executeCommand(CommandInterface $command): PromiseInterface
     {
@@ -82,9 +92,11 @@ final class RedisClient
 
         $pool = $this->pool;
         $connection = null;
+
+        /** @var PromiseInterface<TReturn>|null $innerPromise */
         $innerPromise = null;
 
-        /** @var Promise<mixed> $outerPromise */
+        /** @var Promise<TReturn> $outerPromise */
         $outerPromise = new Promise();
         $poolPromise = $pool->get();
 
@@ -113,7 +125,7 @@ final class RedisClient
             );
 
             $outerPromise->onCancel(function () use (&$innerPromise): void {
-                if ($innerPromise !== null && ! $innerPromise->isSettled()) {
+                if (! $innerPromise->isSettled()) {
                     $innerPromise->cancel();
                 }
             });

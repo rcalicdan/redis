@@ -109,7 +109,11 @@ final class Connection
     }
 
     /**
-     * @return PromiseInterface<mixed>
+     * @template TResponse
+     *
+     * @param CommandInterface<TResponse> $command
+     *
+     * @return PromiseInterface<TResponse>
      */
     public function enqueue(CommandInterface $command): PromiseInterface
     {
@@ -117,7 +121,7 @@ final class Connection
             return Promise::rejected(new ConnectionException('Connection is closed'));
         }
 
-        /** @var Promise<mixed> $promise */
+        /** @var Promise<TResponse> $promise */
         $promise = new Promise();
         $request = new CommandRequest($promise, $command);
 
