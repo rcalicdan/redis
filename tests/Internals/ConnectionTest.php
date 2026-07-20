@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Hibla\Promise\Promise;
+use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Command\BlpopCommand;
 use Hibla\Redis\Command\GetCommand;
 use Hibla\Redis\Command\PingCommand;
@@ -85,7 +86,8 @@ it('rejects pending promises when the connection is closed abruptly', function (
     $connection = await(Connection::create($config));
 
     try {
-        $connection->enqueue(new BlpopCommand(['empty_list', 0]));
+        $connection->enqueue(new BlpopCommand(['empty_list', 0]))->catch(fn() => null);
+
         $pendingPromise = $connection->enqueue(new GetCommand(['some_key']));
         $connection->close();
 
@@ -98,6 +100,97 @@ it('rejects pending promises when the connection is closed abruptly', function (
     } finally {
         $connection->close();
     }
+});
+
+it('rejects commands enqueued after the connection is closed', function () {
+    $config = getConfig();
+    $connection = await(Connection::create($config));
+    $connection->close();
+
+    try {
+        await($connection->enqueue(new PingCommand()));
+        $this->fail('Expected ConnectionException to be thrown');
+    } catch (ConnectionException $e) {
+        expect($e->getMessage())->toBe('Connection is closed');
+    }
+});
+
+it('fails to connect if authentication fails', function () {
+    // Provide a deliberately wrong password
+    $config = getConfig(['password' => 'wrong_password_123']);
+
+    try {
+        await(Connection::create($config));
+        $this->fail('Expected ConnectionException to be thrown');
+    } catch (ConnectionException $e) {
+        expect($e->getMessage())->toContain('Redis initialization failed')
+            ->and($e->getMessage())->toContain('WRONGPASS');
+    }
+});
+
+it('fails to connect if database selection fails', function () {
+    // Redis defaults to 16 databases (0-15). 999999 will fail.
+    $config = getConfig(['database' => 999999]);
+
+    try {
+        await(Connection::create($config));
+        $this->fail('Expected ConnectionException to be thrown');
+    } catch (ConnectionException $e) {
+        expect($e->getMessage())->toContain('Redis initialization failed')
+            ->and($e->getMessage())->toContain('ERR DB index is out of range');
+    }
+});
+
+it('fails to connect to a closed port or non-existent server', function () {
+    // Port 65535 is almost certainly closed
+    $config = getConfig(['port' => 65535, 'connectTimeout' => 1]);
+
+    try {
+        await(Connection::create($config));
+        $this->fail('Expected ConnectionException to be thrown');
+    } catch (ConnectionException $e) {
+        expect($e->getMessage())->toContain('Failed to connect to Redis')
+            ->and($e->getMessage())->toContain('Connection refused');
+    }
+});
+
+
+it('rejects pending promises when the server hangs up the connection', function () {
+    $config = getConfig();
+    $connection = await(Connection::create($config));
+
+    $quitCommand = new class() extends AbstractCommand {
+        public string $id = 'QUIT';
+    };
+
+    try {
+        $connection->enqueue($quitCommand)->catch(fn() => null);
+
+        $pendingPromise = $connection->enqueue(new PingCommand());
+
+        await($pendingPromise);
+        $this->fail('Expected ConnectionException to be thrown');
+    } catch (ConnectionException $e) {
+        expect($e->getMessage())->toBe('Connection was closed');
+    } finally {
+        $connection->close();
+    }
+});
+
+it('garbage collects the connection cleanly after it is closed', function () {
+    $config = getConfig();
+    $connection = await(Connection::create($config));
+    
+    $weakRef = \WeakReference::create($connection);
+    
+    expect($weakRef->get())->not->toBeNull()
+        ->and($weakRef->get()->isClosed())->toBeFalse();
+
+    $connection->close();
+    
+    unset($connection);
+    
+    expect($weakRef->get())->toBeNull();
 });
 
 it('connects to redis over TLS and executes ping', function () {
