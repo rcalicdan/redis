@@ -12,6 +12,13 @@ uses()->afterEach(function (): void {
     Mockery::close();
 })->in(__DIR__);
 
+function debug(string $msg): void
+{
+    $time = explode(' ', microtime());
+    $ts = date('H:i:s', (int)$time[1]) . '.' . sprintf('%03d', (int)($time[0] * 1000));
+    fwrite(STDERR, "[$ts] [DEBUG] $msg\n");
+}
+
 function createHandler(): array
 {
     $ctx = new ConnectionContext();

@@ -252,7 +252,8 @@ describe('RedisClient - Graceful Shutdown', function (): void {
         $client->close();
 
         expect(fn () => await($client->ping()))
-            ->toThrow(ConnectionException::class, 'Client is closed');
+            ->toThrow(ConnectionException::class, 'Client is closed')
+        ;
     });
 
 });

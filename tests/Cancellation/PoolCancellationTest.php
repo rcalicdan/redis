@@ -347,7 +347,8 @@ describe('Shutdown and Cancellation Edge Cases', function (): void {
             $this->fail('Expected PoolException to be thrown');
         } catch (Throwable $e) {
             expect($e)->toBeInstanceOf(PoolException::class)
-                ->and($e->getMessage())->toBe('Pool closed forcefully');
+                ->and($e->getMessage())->toBe('Pool closed forcefully')
+            ;
         }
     });
 });

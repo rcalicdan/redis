@@ -103,8 +103,6 @@ final class Connection
             }
         );
 
-        Promise::forwardCancellation($connectPromise, $socketPromise);
-
         $connectPromise->onCancel($this->close(...));
 
         return $connectPromise;
@@ -211,7 +209,9 @@ final class Connection
 
         $this->ctx->socket = $socket;
         $this->ctx->socket->on('data', $this->commandHandler->handleData(...));
+
         $this->ctx->socket->on('close', $this->close(...));
+
         $this->ctx->socket->on('error', function (Throwable $e): void {
             $this->commandHandler->failPending(new ConnectionException('Socket error: ' . $e->getMessage()));
             $this->close();
@@ -239,6 +239,7 @@ final class Connection
             Promise::all($initPromises)->then(
                 $this->resolveConnectionPromise(...),
                 function (Throwable $e): void {
+
                     if ($this->ctx->connectPromise !== null && ! $this->ctx->connectPromise->isSettled()) {
                         $this->ctx->connectPromise->reject(
                             new ConnectionException('Redis initialization failed: ' . $e->getMessage())

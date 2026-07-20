@@ -10,6 +10,26 @@ use function Hibla\await;
 use function Hibla\delay;
 
 describe('RedisClient - Query & Command Cancellation', function (): void {
+    it('cancels a non-blocking command mid-flight and throws CancelledException', function (): void {
+        $client = new RedisClient(getConfig(), maxConnections: 1);
+
+        try {
+            $blpopPromise = $client->blpop('cancel_list', 10);
+
+            Loop::addTimer(0.05, function () use ($blpopPromise): void {
+                $blpopPromise->cancel();
+            });
+
+            expect(fn () => await($blpopPromise))
+                ->toThrow(CancelledException::class)
+            ;
+
+            $pingResult = await($client->ping('StillAlive'));
+            expect($pingResult)->toBe('StillAlive');
+        } finally {
+            $client->close();
+        }
+    });
 
     it('cancels a non-blocking command mid-flight and throws CancelledException', function (): void {
         $client = new RedisClient(getConfig(), maxConnections: 1);

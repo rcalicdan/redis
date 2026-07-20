@@ -86,7 +86,6 @@ final class RedisClient
 
         /** @var Promise<mixed> $outerPromise */
         $outerPromise = new Promise();
-
         $poolPromise = $pool->get();
 
         $poolPromise->then(function (Connection $conn) use ($command, &$connection, &$innerPromise, $outerPromise, $pool): void {
@@ -113,12 +112,11 @@ final class RedisClient
                 }
             );
 
-            $outerPromise->onCancel(function () use ($innerPromise): void {
-                if (! $innerPromise->isSettled()) {
+            $outerPromise->onCancel(function () use (&$innerPromise): void {
+                if ($innerPromise !== null && ! $innerPromise->isSettled()) {
                     $innerPromise->cancel();
                 }
             });
-
         }, function (\Throwable $e) use ($outerPromise): void {
             if (! $outerPromise->isSettled()) {
                 $outerPromise->reject($e);
