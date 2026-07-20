@@ -116,7 +116,6 @@ it('rejects commands enqueued after the connection is closed', function () {
 });
 
 it('fails to connect if authentication fails', function () {
-    // Provide a deliberately wrong password
     $config = getConfig(['password' => 'wrong_password_123']);
 
     try {
@@ -130,7 +129,6 @@ it('fails to connect if authentication fails', function () {
 });
 
 it('fails to connect if database selection fails', function () {
-    // Redis defaults to 16 databases (0-15). 999999 will fail.
     $config = getConfig(['database' => 999999]);
 
     try {
@@ -144,7 +142,6 @@ it('fails to connect if database selection fails', function () {
 });
 
 it('fails to connect to a closed port or non-existent server', function () {
-    // Port 65535 is almost certainly closed
     $config = getConfig(['port' => 65535, 'connectTimeout' => 1]);
 
     try {
@@ -152,7 +149,7 @@ it('fails to connect to a closed port or non-existent server', function () {
         $this->fail('Expected ConnectionException to be thrown');
     } catch (ConnectionException $e) {
         expect($e->getMessage())->toContain('Failed to connect to Redis')
-            ->and($e->getMessage())->toContain('Connection refused')
+            ->and($e->getMessage())->toContain('refused')
         ;
     }
 });

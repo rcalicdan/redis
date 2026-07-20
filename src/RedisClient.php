@@ -30,7 +30,7 @@ final class RedisClient
 
     public function __construct(
         RedisConfig|array|string $config,
-        int $minConnections = 1,
+        int $minConnections = 0,
         int $maxConnections = 10,
         int $idleTimeout = 60,
         int $maxLifetime = 3600,
@@ -84,24 +84,60 @@ final class RedisClient
         $connection = null;
         $innerPromise = null;
 
-        $promise = $pool->get()
-            ->then(function (Connection $conn) use ($command, &$connection, &$innerPromise): PromiseInterface {
-                $connection = $conn;
+        /** @var Promise<mixed> $outerPromise */
+        $outerPromise = new Promise();
 
-                $innerPromise = $conn->enqueue($command);
+        $poolPromise = $pool->get();
 
-                return $innerPromise;
-            })
-            ->finally(function () use ($pool, &$connection): void {
-                if ($connection !== null) {
-                    $pool->release($connection);
+        $poolPromise->then(function (Connection $conn) use ($command, &$connection, &$innerPromise, $outerPromise, $pool): void {
+            $connection = $conn;
+
+            if ($outerPromise->isCancelled()) {
+                $pool->release($connection);
+
+                return;
+            }
+
+            $innerPromise = $conn->enqueue($command);
+
+            $innerPromise->then(
+                function (mixed $result) use ($outerPromise): void {
+                    if (! $outerPromise->isSettled()) {
+                        $outerPromise->resolve($result);
+                    }
+                },
+                function (\Throwable $e) use ($outerPromise): void {
+                    if (! $outerPromise->isSettled()) {
+                        $outerPromise->reject($e);
+                    }
                 }
-            })
-        ;
+            );
 
-        Promise::forwardCancellation($promise, $innerPromise);
+            $outerPromise->onCancel(function () use ($innerPromise): void {
+                if (! $innerPromise->isSettled()) {
+                    $innerPromise->cancel();
+                }
+            });
 
-        return Promise::propagateCancellation($promise);
+        }, function (\Throwable $e) use ($outerPromise): void {
+            if (! $outerPromise->isSettled()) {
+                $outerPromise->reject($e);
+            }
+        });
+
+        $outerPromise->finally(function () use ($pool, &$connection): void {
+            if ($connection !== null) {
+                $pool->release($connection);
+            }
+        });
+
+        $outerPromise->onCancel(function () use ($poolPromise): void {
+            if (! $poolPromise->isSettled()) {
+                $poolPromise->cancel();
+            }
+        });
+
+        return $outerPromise;
     }
 
     /**

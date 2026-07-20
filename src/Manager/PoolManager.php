@@ -68,7 +68,7 @@ final class PoolManager
     public function __construct(
         private readonly RedisConfig $config,
         private readonly int $maxSize = 10,
-        private readonly int $minSize = 1,
+        private readonly int $minSize = 0,
         int $idleTimeout = 60,
         int $maxLifetime = 3600,
         private readonly int $maxWaiters = 0,
@@ -430,7 +430,16 @@ final class PoolManager
             }
         );
 
-        Promise::forwardCancellation($promise, $connPromise);
+        $promise->onCancel(function () use ($connPromise): void {
+            $this->activeConnections--;
+
+            if (! $connPromise->isSettled()) {
+                $connPromise->cancel();
+            }
+
+            $this->satisfyNextWaiter();
+            $this->checkShutdownComplete();
+        });
 
         return $promise;
     }
@@ -487,7 +496,17 @@ final class PoolManager
                 }
             );
 
-            Promise::forwardCancellation($waiter, $connPromise);
+            $waiter->onCancel(function () use ($connPromise): void {
+                // FIX: Decrement activeConnections if the waiter cancels mid-connect
+                $this->activeConnections--;
+
+                if (! $connPromise->isSettled()) {
+                    $connPromise->cancel();
+                }
+
+                $this->satisfyNextWaiter();
+                $this->checkShutdownComplete();
+            });
         }
     }
 

@@ -166,6 +166,11 @@ final class Connection
         return $this->ctx->state === ConnectionState::CLOSED;
     }
 
+    public function isReady(): bool
+    {
+        return $this->ctx->state === ConnectionState::READY;
+    }
+
     private function handleCommandCancellation(CommandRequest $request): void
     {
         if ($this->removeFromQueue($request)) {
@@ -234,12 +239,12 @@ final class Connection
             Promise::all($initPromises)->then(
                 $this->resolveConnectionPromise(...),
                 function (Throwable $e): void {
-                    $this->close();
                     if ($this->ctx->connectPromise !== null && ! $this->ctx->connectPromise->isSettled()) {
                         $this->ctx->connectPromise->reject(
                             new ConnectionException('Redis initialization failed: ' . $e->getMessage())
                         );
                     }
+                    $this->close();
                 }
             );
         }

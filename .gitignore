@@ -3,3 +3,4 @@
 /manual-test/
 /node_modules
 .vscode
+/tests/HangingTest.php
