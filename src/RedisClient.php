@@ -15,12 +15,14 @@ use Hibla\Redis\Command\PingCommand;
 use Hibla\Redis\Command\SetCommand;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Interfaces\CommandInterface;
+use Hibla\Redis\Interfaces\RedisClientInterface;
 use Hibla\Redis\Internals\Connection;
+use Hibla\Redis\Internals\Pipeline;
 use Hibla\Redis\Manager\PoolManager;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Socket\Interfaces\ConnectorInterface;
 
-final class RedisClient
+final class RedisClient implements RedisClientInterface
 {
     private ?PoolManager $pool = null;
 
@@ -63,7 +65,7 @@ final class RedisClient
     }
 
     /**
-     * @var array<string, bool|float|int>
+     * {@inheritDoc}
      */
     public array $stats {
         get {
@@ -76,7 +78,7 @@ final class RedisClient
     }
 
     /**
-     * Executes any CommandInterface.
+     * {@inheritDoc}
      *
      * @template TReturn
      *
@@ -93,14 +95,12 @@ final class RedisClient
         $pool = $this->pool;
         $connection = null;
 
-        /** @var PromiseInterface<TReturn>|null $innerPromise */
-        $innerPromise = null;
-
         /** @var Promise<TReturn> $outerPromise */
         $outerPromise = new Promise();
+
         $poolPromise = $pool->get();
 
-        $poolPromise->then(function (Connection $conn) use ($command, &$connection, &$innerPromise, $outerPromise, $pool): void {
+        $poolPromise->then(function (Connection $conn) use ($command, &$connection, $outerPromise, $pool): void {
             $connection = $conn;
 
             if ($outerPromise->isCancelled()) {
@@ -124,7 +124,7 @@ final class RedisClient
                 }
             );
 
-            $outerPromise->onCancel(function () use (&$innerPromise): void {
+            $outerPromise->onCancel(function () use ($innerPromise): void {
                 if (! $innerPromise->isSettled()) {
                     $innerPromise->cancel();
                 }
@@ -151,7 +151,85 @@ final class RedisClient
     }
 
     /**
-     * @return PromiseInterface<array<string, int>>
+     * {@inheritDoc}
+     */
+    public function pipeline(callable $callback): PromiseInterface
+    {
+        if ($this->pool === null) {
+            return Promise::rejected(new ConnectionException('Client is closed'));
+        }
+
+        $pipeline = new Pipeline();
+
+        $callback($pipeline);
+
+        $pipeline->lock();
+        $commands = $pipeline->commands;
+
+        if ($commands === []) {
+            return Promise::resolved([]);
+        }
+
+        $pool = $this->pool;
+        $connection = null;
+
+        /** @var Promise<array<int, mixed>> $outerPromise */
+        $outerPromise = new Promise();
+
+        $poolPromise = $pool->get();
+
+        $poolPromise->then(function (Connection $conn) use ($commands, &$connection, $outerPromise, $pool): void {
+            $connection = $conn;
+
+            if ($outerPromise->isCancelled()) {
+                $pool->release($connection);
+
+                return;
+            }
+
+            $innerPromise = $conn->enqueueBatch($commands);
+
+            $innerPromise->then(
+                function (array $results) use ($outerPromise): void {
+                    if (! $outerPromise->isSettled()) {
+                        $outerPromise->resolve($results);
+                    }
+                },
+                function (\Throwable $e) use ($outerPromise): void {
+                    if (! $outerPromise->isSettled()) {
+                        $outerPromise->reject($e);
+                    }
+                }
+            );
+
+            $outerPromise->onCancel(function () use ($innerPromise): void {
+                if (! $innerPromise->isSettled()) {
+                    $innerPromise->cancel();
+                }
+            });
+        }, function (\Throwable $e) use ($outerPromise): void {
+            if (! $outerPromise->isSettled()) {
+                $outerPromise->reject($e);
+            }
+        });
+
+        $outerPromise->finally(function () use ($pool, &$connection): void {
+            if ($connection !== null) {
+                $pool->release($connection);
+            }
+        });
+
+        $outerPromise->onCancel(function () use ($poolPromise): void {
+            if (! $poolPromise->isSettled()) {
+                $poolPromise->cancel();
+            }
+        });
+
+        return $outerPromise;
+    }
+
+    /**
+     * {@inheritDoc}
      */
     public function healthCheck(): PromiseInterface
     {
@@ -163,7 +241,7 @@ final class RedisClient
     }
 
     /**
-     * @return PromiseInterface<string> "PONG"
+     * {@inheritDoc}
      */
     public function ping(?string $message = null): PromiseInterface
     {
@@ -173,9 +251,7 @@ final class RedisClient
     }
 
     /**
-     * Get the value of a key.
-     *
-     * @return PromiseInterface<string|null>
+     * {@inheritDoc}
      */
     public function get(string $key): PromiseInterface
     {
@@ -183,7 +259,7 @@ final class RedisClient
     }
 
     /**
-     * @return PromiseInterface<string> "OK" on success
+     * {@inheritDoc}
      */
     public function set(string $key, mixed $value): PromiseInterface
     {
@@ -191,7 +267,7 @@ final class RedisClient
     }
 
     /**
-     * @return PromiseInterface<int> Number of deleted keys
+     * {@inheritDoc}
      */
     public function del(string ...$keys): PromiseInterface
     {
@@ -199,9 +275,7 @@ final class RedisClient
     }
 
     /**
-     * Get the values of all the given keys.
-     *
-     * @return PromiseInterface<array<int, string|null>>
+     * {@inheritDoc}
      */
     public function mget(string ...$keys): PromiseInterface
     {
@@ -209,7 +283,7 @@ final class RedisClient
     }
 
     /**
-     * @return PromiseInterface<array<string, string>>
+     * {@inheritDoc}
      */
     public function hgetall(string $key): PromiseInterface
     {
@@ -217,12 +291,7 @@ final class RedisClient
     }
 
     /**
-     * Blocks the connection until an element is popped from the list.
-     * Use Promise::timeout() to wrap this if you don't want to wait forever.
-     *
-     * @param string|array<string> $keys
-     *
-     * @return PromiseInterface<array<int, string>|null>
+     * {@inheritDoc}
      */
     public function blpop(string|array $keys, float|int $timeout = 0): PromiseInterface
     {
@@ -233,7 +302,7 @@ final class RedisClient
     }
 
     /**
-     * @return PromiseInterface<void>
+     * {@inheritDoc}
      */
     public function closeAsync(float $timeout = 0.0): PromiseInterface
     {
@@ -261,6 +330,9 @@ final class RedisClient
         return $this->closePromise;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public function close(): void
     {
         if ($this->pool === null) {

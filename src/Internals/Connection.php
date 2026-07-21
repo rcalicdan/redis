@@ -135,6 +135,43 @@ final class Connection
         return $promise;
     }
 
+    /**
+     * @param array<int, CommandInterface<mixed>> $commands
+     *
+     * @return PromiseInterface<array<int, mixed>>
+     */
+    public function enqueueBatch(array $commands): PromiseInterface
+    {
+        if ($this->ctx->state === ConnectionState::CLOSED) {
+            return Promise::rejected(new ConnectionException('Connection is closed'));
+        }
+
+        if ($commands === []) {
+            return Promise::resolved([]);
+        }
+
+        $promises = [];
+
+        foreach ($commands as $command) {
+            /** @var Promise<mixed> $promise */
+            $promise = new Promise();
+            $request = new CommandRequest($promise, $command);
+
+            $this->ctx->writeQueue->enqueue($request);
+
+            $promise->onCancel(function () use ($request): void {
+                $this->handleCommandCancellation($request);
+            });
+
+            $promises[] = $promise;
+        }
+
+        $this->commandHandler->flush();
+
+        /** @var PromiseInterface<array<int, mixed>> */
+        return Promise::all($promises);
+    }
+
     public function close(): void
     {
         if ($this->ctx->state === ConnectionState::CLOSED) {

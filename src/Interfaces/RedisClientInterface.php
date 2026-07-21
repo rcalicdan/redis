@@ -51,6 +51,15 @@ interface RedisClientInterface extends RedisCommandsInterface
     public function healthCheck(): PromiseInterface;
 
     /**
+     * Executes multiple commands in a single TCP write for maximum throughput.
+     *
+     * @param callable(PipelineInterface): void $callback Function that builds the pipeline.
+     *
+     * @return PromiseInterface<array<int, mixed>> Resolves to an array of results matching the order the commands were queued.
+     */
+    public function pipeline(callable $callback): PromiseInterface;
+
+    /**
      * Initiates a graceful shutdown of the connection pool.
      *
      * Rejects any new commands, but allows currently active commands to finish
