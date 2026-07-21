@@ -16,7 +16,11 @@ describe('Pipeline Cancellation & Resource Safety', function (): void {
 
         try {
             $hogPromise = $client->blpop('hog_list', 5);
-            await(delay(0.02)); 
+            
+            for ($attempt = 0; $attempt < 50; $attempt++) {
+                if ($client->stats['active_connections'] === 1) break;
+                await(delay(0.01));
+            }
 
             expect($client->stats['active_connections'])->toBe(1)
                 ->and($client->stats['waiting_requests'])->toBe(0);
@@ -54,21 +58,20 @@ describe('Pipeline Cancellation & Resource Safety', function (): void {
             });
 
             for ($attempt = 0; $attempt < 50; $attempt++) {
-                if ($client->stats['active_connections'] === 1) {
-                    break;
-                }
+                if ($client->stats['active_connections'] === 1) break;
                 await(delay(0.01));
             }
 
+            await(delay(0.02)); 
+
             expect($client->stats['active_connections'])->toBe(1);
+            
             $pipelinePromise->cancel();
 
             expect(fn () => await($pipelinePromise))->toThrow(CancelledException::class);
 
             for ($attempt = 0; $attempt < 50; $attempt++) {
-                if ($client->stats['pooled_connections'] === 1) {
-                    break;
-                }
+                if ($client->stats['pooled_connections'] === 1) break;
                 await(delay(0.01));
             }
 
@@ -87,16 +90,26 @@ describe('Pipeline Cancellation & Resource Safety', function (): void {
 
         try {
             $pipelinePromise = $client->pipeline(function (PipelineInterface $pipe) {
-                for ($i = 0; $i < 50; $i++) {
+                for ($i = 0; $i < 5000; $i++) {
                     $pipe->ping("Ping {$i}");
                 }
             });
+
+            for ($attempt = 0; $attempt < 50; $attempt++) {
+                if ($client->stats['active_connections'] === 1) break;
+                await(delay(0.01));
+            }
+            
+            await(delay(0.005)); 
 
             $pipelinePromise->cancel();
 
             expect(fn () => await($pipelinePromise))->toThrow(CancelledException::class);
 
-            await(delay(0.05));
+            for ($attempt = 0; $attempt < 50; $attempt++) {
+                if ($client->stats['pooled_connections'] === 1) break;
+                await(delay(0.01));
+            }
 
             expect($client->stats['active_connections'])->toBe(0)
                 ->and($client->stats['pooled_connections'])->toBe(1);
