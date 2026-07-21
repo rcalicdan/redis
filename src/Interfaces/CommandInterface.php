@@ -5,7 +5,13 @@ declare(strict_types=1);
 namespace Hibla\Redis\Interfaces;
 
 /**
- * @template-covariant TResponse
+ * Contract for all Redis commands.
+ *
+ * Every Redis command encapsulates its own identifier, arguments, parsing rules,
+ * and behavior on connection cancellation. By implementing this interface, commands
+ * can be plugged cleanly into the async execution pipeline.
+ *
+ * @template-covariant TResponse The expected PHP return type after parsing.
  */
 interface CommandInterface
 {

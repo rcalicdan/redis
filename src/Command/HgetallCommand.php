@@ -5,6 +5,13 @@ declare(strict_types=1);
 namespace Hibla\Redis\Command;
 
 /**
+ * Redis HGETALL command.
+ *
+ * Returns all fields and values of the hash stored at key. In the returned value,
+ * every alternate element represents a field name and the following element represents
+ * its value. This command parses the flat array response into an associative array.
+ *
+ * @see https://redis.io/commands/hgetall/
  * @extends AbstractCommand<array<string, string>>
  */
 final class HgetallCommand extends AbstractCommand

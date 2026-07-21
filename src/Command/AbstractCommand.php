@@ -7,10 +7,13 @@ namespace Hibla\Redis\Command;
 use Hibla\Redis\Interfaces\CommandInterface;
 
 /**
- * Base class for all Redis commands.
+ * Base representation of a Redis command.
+ *
+ * Provides default implementations of argument storage, non-blocking behavior,
+ * and a simple pass-through response parser. Custom command implementations should
+ * extend this class and declare their expected response type via generic template.
  *
  * @template-covariant TResponse
- *
  * @implements CommandInterface<TResponse>
  */
 abstract class AbstractCommand implements CommandInterface
