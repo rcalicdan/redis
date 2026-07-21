@@ -15,6 +15,7 @@ namespace Hibla\Redis\Command;
  * to prevent desynchronization of the RESP protocol stream.
  *
  * @see https://redis.io/commands/blpop/
+ *
  * @extends AbstractCommand<array<int, string>|null>
  */
 final class BlpopCommand extends AbstractCommand

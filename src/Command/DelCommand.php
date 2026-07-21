@@ -11,6 +11,7 @@ namespace Hibla\Redis\Command;
  * Resolves to the integer number of keys that were successfully removed.
  *
  * @see https://redis.io/commands/del/
+ *
  * @extends AbstractCommand<int>
  */
 final class DelCommand extends AbstractCommand

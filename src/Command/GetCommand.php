@@ -12,6 +12,7 @@ namespace Hibla\Redis\Command;
  * an error is returned because GET only handles string values.
  *
  * @see https://redis.io/commands/get/
+ *
  * @extends AbstractCommand<string|null>
  */
 final class GetCommand extends AbstractCommand

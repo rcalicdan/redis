@@ -12,6 +12,7 @@ namespace Hibla\Redis\Command;
  * internally during connection setup if a specific database index is configured.
  *
  * @see https://redis.io/commands/select/
+ *
  * @extends AbstractCommand<string>
  */
 final class SelectCommand extends AbstractCommand

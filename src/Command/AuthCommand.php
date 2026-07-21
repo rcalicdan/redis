@@ -12,6 +12,7 @@ namespace Hibla\Redis\Command;
  * internally during the connection setup if credentials are provided in the config.
  *
  * @see https://redis.io/commands/auth/
+ *
  * @extends AbstractCommand<string>
  */
 final class AuthCommand extends AbstractCommand

@@ -12,6 +12,7 @@ namespace Hibla\Redis\Command;
  * on a successful SET operation.
  *
  * @see https://redis.io/commands/set/
+ *
  * @extends AbstractCommand<string>
  */
 final class SetCommand extends AbstractCommand

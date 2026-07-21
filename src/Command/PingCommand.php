@@ -12,6 +12,7 @@ namespace Hibla\Redis\Command;
  * the server echoes that exact message back.
  *
  * @see https://redis.io/commands/ping/
+ *
  * @extends AbstractCommand<string>
  */
 final class PingCommand extends AbstractCommand

@@ -11,6 +11,7 @@ namespace Hibla\Redis\Command;
  * a string value or does not exist, null is returned in its respective position.
  *
  * @see https://redis.io/commands/mget/
+ *
  * @extends AbstractCommand<array<int, string|null>>
  */
 final class MgetCommand extends AbstractCommand

@@ -14,6 +14,7 @@ use Hibla\Redis\Interfaces\CommandInterface;
  * extend this class and declare their expected response type via generic template.
  *
  * @template-covariant TResponse
+ *
  * @implements CommandInterface<TResponse>
  */
 abstract class AbstractCommand implements CommandInterface

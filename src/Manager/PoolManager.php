@@ -262,7 +262,7 @@ final class PoolManager
         /** @var Promise<void> $promise */
         $promise = new Promise();
         $this->shutdownPromise = $promise;
-        
+
         $this->checkShutdownComplete();
 
         $activeShutdownPromise = $this->shutdownPromise;

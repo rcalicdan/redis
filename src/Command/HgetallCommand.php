@@ -12,6 +12,7 @@ namespace Hibla\Redis\Command;
  * its value. This command parses the flat array response into an associative array.
  *
  * @see https://redis.io/commands/hgetall/
+ *
  * @extends AbstractCommand<array<string, string>>
  */
 final class HgetallCommand extends AbstractCommand
