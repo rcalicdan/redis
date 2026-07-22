@@ -12,12 +12,14 @@ use Hibla\Redis\Command\GetCommand;
 use Hibla\Redis\Command\HgetallCommand;
 use Hibla\Redis\Command\MgetCommand;
 use Hibla\Redis\Command\PingCommand;
+use Hibla\Redis\Command\PublishCommand;
 use Hibla\Redis\Command\SetCommand;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\RedisClientInterface;
 use Hibla\Redis\Internals\Connection;
 use Hibla\Redis\Internals\Pipeline;
+use Hibla\Redis\Internals\RedisSubscriber;
 use Hibla\Redis\Manager\PoolManager;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Socket\Interfaces\ConnectorInterface;
@@ -34,6 +36,11 @@ final class RedisClient implements RedisClientInterface
     private ?PromiseInterface $closePromise = null;
 
     /**
+     * @var RedisConfig|array<string, mixed>|string
+     */
+    private RedisConfig|array|string $config;
+
+    /**
      * @param RedisConfig|array<string, mixed>|string $config
      */
     public function __construct(
@@ -46,14 +53,10 @@ final class RedisClient implements RedisClientInterface
         float $acquireTimeout = 10.0,
         ?ConnectorInterface $connector = null
     ) {
-        $redisConfig = match (true) {
-            $config instanceof RedisConfig => $config,
-            \is_array($config) => RedisConfig::fromArray($config),
-            \is_string($config) => RedisConfig::fromUri($config),
-        };
+        $this->config = $config;
 
         $this->pool = new PoolManager(
-            config: $redisConfig,
+            config: $config,
             maxSize: $maxConnections,
             minSize: $minConnections,
             idleTimeout: $idleTimeout,
@@ -226,6 +229,30 @@ final class RedisClient implements RedisClientInterface
         });
 
         return $outerPromise;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function createSubscriber(float $minReconnectInterval = 1.0, float $maxReconnectInterval = 30.0): PromiseInterface
+    {
+        $subscriber = new RedisSubscriber(
+            $this->config,
+            $minReconnectInterval,
+            $maxReconnectInterval
+        );
+
+        return $subscriber->initialize()->then(function () use ($subscriber) {
+            return $subscriber;
+        });
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function publish(string $channel, string $message): PromiseInterface
+    {
+        return $this->executeCommand(new PublishCommand([$channel, $message]));
     }
 
     /**

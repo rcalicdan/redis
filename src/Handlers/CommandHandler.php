@@ -61,18 +61,27 @@ final class CommandHandler
     {
         $this->ctx->parser->append($chunk);
 
-        // Keep parsing as long as there are full messages in the buffer.
         $result = null;
         while ($this->ctx->parser->parse($result)) {
+            // PUB/SUB MESSAGE INTERCEPTION
+            if (\is_array($result) && isset($result[0]) && \is_string($result[0])) {
+                $type = strtolower($result[0]);
+
+                if ($type === 'message' || $type === 'pmessage') {
+                    if ($this->ctx->pubSubCallback !== null) {
+                        /** @var array<int, mixed> $result */
+                        ($this->ctx->pubSubCallback)($result);
+                    }
+
+                    continue; // Do NOT touch the responseQueue!
+                }
+            }
+
             if ($this->ctx->responseQueue->isEmpty()) {
-                // Should not happen unless Redis sends unprompted data (e.g. Pub/Sub)
                 continue;
             }
 
             $request = $this->ctx->responseQueue->dequeue();
-
-            // If cancelled while in flight, we just drop the response.
-            // We cannot abort a Redis command mid-flight without closing the connection.
             if ($request->promise->isCancelled()) {
                 continue;
             }

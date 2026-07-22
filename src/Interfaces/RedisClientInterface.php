@@ -60,6 +60,29 @@ interface RedisClientInterface extends RedisCommandsInterface
     public function pipeline(callable $callback): PromiseInterface;
 
     /**
+     * Posts a message to the given channel.
+     *
+     * @param string $channel The channel to broadcast to.
+     * @param string $message The message payload.
+     *
+     * @return PromiseInterface<int> Resolves to the number of clients that received the message.
+     */
+    public function publish(string $channel, string $message): PromiseInterface;
+
+    /**
+     * Creates a dedicated, unpooled RedisSubscriber for Pub/Sub.
+     *
+     * This creates a standalone TCP connection to Redis that is completely
+     * isolated from the connection pool with transparent auto-reconnection.
+     *
+     * @param float $minReconnectInterval The initial wait time in seconds before reconnecting.
+     * @param float $maxReconnectInterval The maximum wait time in seconds for exponential backoff.
+     *
+     * @return PromiseInterface<RedisSubscriberInterface>
+     */
+    public function createSubscriber(float $minReconnectInterval = 1.0, float $maxReconnectInterval = 30.0): PromiseInterface;
+
+    /**
      * Initiates a graceful shutdown of the connection pool.
      *
      * Rejects any new commands, but allows currently active commands to finish

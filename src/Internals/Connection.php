@@ -23,24 +23,42 @@ use Throwable;
 /**
  * @internal
  */
-final class Connection
+class Connection
 {
     private readonly ConnectionContext $ctx;
 
     private readonly CommandHandler $commandHandler;
 
+    private readonly RedisConfig $config;
+
+    /**
+     * @var callable(): void|null
+     */
+    private mixed $onCloseCallback = null;
+
+    /**
+     * @param RedisConfig|array<string, mixed>|string $config
+     */
     public function __construct(
-        private readonly RedisConfig $config,
+        RedisConfig|array|string $config,
         private readonly ?ConnectorInterface $connector = null
     ) {
+        $this->config = match (true) {
+            $config instanceof RedisConfig => $config,
+            \is_array($config) => RedisConfig::fromArray($config),
+            \is_string($config) => RedisConfig::fromUri($config),
+        };
+
         $this->ctx = new ConnectionContext();
         $this->commandHandler = new CommandHandler($this->ctx);
     }
 
     /**
+     * @param RedisConfig|array<string, mixed>|string $config
+     *
      * @return PromiseInterface<self>
      */
-    public static function create(RedisConfig $config, ?ConnectorInterface $connector = null): PromiseInterface
+    public static function create(RedisConfig|array|string $config, ?ConnectorInterface $connector = null): PromiseInterface
     {
         $connection = new self($config, $connector);
 
@@ -172,6 +190,21 @@ final class Connection
         return Promise::all($promises);
     }
 
+    /**
+     * Registers a callback to receive asynchronous Pub/Sub messages.
+     *
+     * @param callable(array<int, mixed>): void|null $callback
+     */
+    public function setPubSubCallback(?callable $callback): void
+    {
+        $this->ctx->pubSubCallback = $callback;
+    }
+
+    public function onClose(callable $callback): void
+    {
+        $this->onCloseCallback = $callback;
+    }
+
     public function close(): void
     {
         if ($this->ctx->state === ConnectionState::CLOSED) {
@@ -193,6 +226,12 @@ final class Connection
         }
 
         $this->commandHandler->failPending(new ConnectionException('Connection was closed'));
+
+        $closeCallback = $this->onCloseCallback;
+        $this->onCloseCallback = null;
+        if ($closeCallback !== null) {
+            $closeCallback();
+        }
     }
 
     public function getState(): ConnectionState

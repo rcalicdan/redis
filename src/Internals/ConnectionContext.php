@@ -40,6 +40,11 @@ final class ConnectionContext
      */
     public ?Promise $connectPromise = null;
 
+    /**
+     * @var callable(array<int, mixed>): void|null
+     */
+    public mixed $pubSubCallback = null;
+
     public function __construct()
     {
         $this->writeQueue = new SplQueue();

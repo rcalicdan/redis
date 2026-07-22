@@ -60,13 +60,18 @@ final class PoolManager
 
     private PoolException $exhaustedException;
 
+    private readonly RedisConfig $config;
+
     /**
      * @var Promise<void>|null
      */
     private ?Promise $shutdownPromise = null;
 
+    /**
+     * @param RedisConfig|array<string, mixed>|string $config
+     */
     public function __construct(
-        private readonly RedisConfig $config,
+        RedisConfig|array|string $config,
         private readonly int $maxSize = 10,
         private readonly int $minSize = 0,
         int $idleTimeout = 60,
@@ -75,6 +80,12 @@ final class PoolManager
         private readonly float $acquireTimeout = 10.0,
         private readonly ?ConnectorInterface $connector = null
     ) {
+        $this->config = match (true) {
+            $config instanceof RedisConfig => $config,
+            \is_array($config) => RedisConfig::fromArray($config),
+            \is_string($config) => RedisConfig::fromUri($config),
+        };
+
         if ($maxSize <= 0) {
             throw new InvalidArgumentException('Pool max size must be greater than 0');
         }
