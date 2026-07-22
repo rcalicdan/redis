@@ -78,6 +78,16 @@ interface PipelineInterface
     public function blpop(string|array $keys, float|int $timeout = 0): self;
 
     /**
+     * Adds a PUBLISH command to the pipeline.
+     *
+     * @param string $channel The channel to broadcast to.
+     * @param string $message The message payload.
+     *
+     * @return self
+     */
+    public function publish(string $channel, string $message): self;
+
+    /**
      * Adds a custom or raw CommandInterface to the pipeline.
      *
      * @template TResponse

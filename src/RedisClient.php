@@ -242,9 +242,13 @@ final class RedisClient implements RedisClientInterface
             $maxReconnectInterval
         );
 
-        return $subscriber->initialize()->then(function () use ($subscriber) {
+        $promise = $subscriber->initialize()->then(function () use ($subscriber) {
             return $subscriber;
         });
+
+        $promise->onCancel($subscriber->close(...));
+
+        return Promise::propagateCancellation($promise);
     }
 
     /**

@@ -76,10 +76,12 @@ final class RedisSubscriber implements RedisSubscriberInterface
      */
     public function initialize(): PromiseInterface
     {
-        return Promise::propagateCancellation(
-            $this->getConnection()->then(function (): void {
-            })
-        );
+        $promise = $this->getConnection()->then(function (): void {
+        });
+
+        $promise->onCancel($this->close(...));
+
+        return Promise::propagateCancellation($promise);
     }
 
     /**

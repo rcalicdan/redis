@@ -10,6 +10,7 @@ use Hibla\Redis\Command\GetCommand;
 use Hibla\Redis\Command\HgetallCommand;
 use Hibla\Redis\Command\MgetCommand;
 use Hibla\Redis\Command\PingCommand;
+use Hibla\Redis\Command\PublishCommand;
 use Hibla\Redis\Command\SetCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\PipelineInterface;
@@ -116,6 +117,17 @@ final class Pipeline implements PipelineInterface
         $args = \is_array($keys) ? $keys : [$keys];
         $args[] = $timeout;
         $this->commands[] = new BlpopCommand($args);
+
+        return $this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function publish(string $channel, string $message): self
+    {
+        $this->checkLocked();
+        $this->commands[] = new PublishCommand([$channel, $message]);
 
         return $this;
     }
