@@ -178,3 +178,78 @@ it('rejects all pending requests when failPending is called', function () {
         ->and($promise2->reason)->toBe($exception)
     ;
 });
+
+it('intercepts pub/sub "message" arrays and routes them to callback without popping responseQueue', function () {
+    [$handler, $ctx] = createHandler();
+
+    $receivedMessage = null;
+    $ctx->pubSubCallback = function (array $msg) use (&$receivedMessage): void {
+        $receivedMessage = $msg;
+    };
+
+    $promise = new Promise();
+    $ctx->responseQueue->enqueue(new CommandRequest($promise, new PingCommand()));
+    $payload = "*3\r\n$7\r\nmessage\r\n$4\r\nnews\r\n$5\r\nhello\r\n";
+    $handler->handleData($payload);
+
+    expect($receivedMessage)->toBe(['message', 'news', 'hello'])
+        ->and($ctx->responseQueue->count())->toBe(1)
+        ->and($promise->isPending())->toBeTrue()
+    ;
+});
+
+it('intercepts pub/sub "pmessage" arrays and routes them to callback without popping responseQueue', function () {
+    [$handler, $ctx] = createHandler();
+
+    $receivedMessage = null;
+    $ctx->pubSubCallback = function (array $msg) use (&$receivedMessage): void {
+        $receivedMessage = $msg;
+    };
+
+    $promise = new Promise();
+    $ctx->responseQueue->enqueue(new CommandRequest($promise, new PingCommand()));
+
+    $payload = "*4\r\n$8\r\npmessage\r\n$6\r\nnews.*\r\n$10\r\nnews.sport\r\n$5\r\nhello\r\n";
+    $handler->handleData($payload);
+
+    expect($receivedMessage)->toBe(['pmessage', 'news.*', 'news.sport', 'hello'])
+        ->and($ctx->responseQueue->count())->toBe(1)
+        ->and($promise->isPending())->toBeTrue()
+    ;
+});
+
+it('allows subscription acknowledgments to resolve pending responseQueue commands', function () {
+    [$handler, $ctx] = createHandler();
+
+    $callbackFired = false;
+    $ctx->pubSubCallback = function () use (&$callbackFired): void {
+        $callbackFired = true;
+    };
+
+    $promise = new Promise();
+    $ctx->responseQueue->enqueue(new CommandRequest($promise, new PingCommand()));
+
+    $payload = "*3\r\n$9\r\nsubscribe\r\n$4\r\nnews\r\n:1\r\n";
+    $handler->handleData($payload);
+
+    expect($callbackFired)->toBeFalse()
+        ->and($ctx->responseQueue->isEmpty())->toBeTrue()
+        ->and($promise->isFulfilled())->toBeTrue()
+        ->and($promise->value)->toBe(['subscribe', 'news', 1])
+    ;
+});
+
+it('ignores pub/sub messages cleanly if pubSubCallback is not set', function () {
+    [$handler, $ctx] = createHandler();
+    $ctx->pubSubCallback = null;
+
+    $promise = new Promise();
+    $ctx->responseQueue->enqueue(new CommandRequest($promise, new PingCommand()));
+
+    $payload = "*3\r\n$7\r\nmessage\r\n$4\r\nnews\r\n$5\r\nhello\r\n";
+    $handler->handleData($payload);
+
+    expect($ctx->responseQueue->count())->toBe(1)
+        ->and($promise->isPending())->toBeTrue()
+    ;
+});
