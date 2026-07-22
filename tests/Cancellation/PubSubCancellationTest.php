@@ -36,15 +36,11 @@ describe('Pub/Sub Cancellation', function (): void {
                 $received[] = $payload;
             });
 
-            // Cancel immediately before the network ACK arrives
             $promise->cancel();
 
             expect(fn () => await($promise))->toThrow(CancelledException::class);
 
-            // Give the event loop a tick to process the cancellation cleanup
             await(delay(0.05));
-
-            // Publish to the channel and verify the cancelled callback never receives it
             await($client->publish('cancel_sub_channel', 'Test Message'));
             await(delay(0.05));
 
@@ -90,7 +86,6 @@ describe('Pub/Sub Cancellation', function (): void {
         try {
             $subscriberPromise = $client->createSubscriber();
 
-            // Cancel before the TCP connection handshake finishes
             $subscriberPromise->cancel();
 
             expect(fn () => await($subscriberPromise))->toThrow(CancelledException::class);

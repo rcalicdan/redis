@@ -516,7 +516,6 @@ final class PoolManager
             );
 
             $waiter->onCancel(function () use ($connPromise): void {
-                // FIX: Decrement activeConnections if the waiter cancels mid-connect
                 $this->activeConnections--;
 
                 if (! $connPromise->isSettled()) {
