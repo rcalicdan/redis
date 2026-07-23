@@ -205,6 +205,16 @@ class Connection
         $this->onCloseCallback = $callback;
     }
 
+    public function clearQueue(): void
+    {
+        while (! $this->ctx->writeQueue->isEmpty()) {
+            $cmd = $this->ctx->writeQueue->dequeue();
+            if (! $cmd->promise->isSettled()) {
+                $cmd->promise->cancel();
+            }
+        }
+    }
+
     public function close(): void
     {
         if ($this->ctx->state === ConnectionState::CLOSED) {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hibla\Redis;
 
+use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\BlpopCommand;
@@ -20,9 +21,13 @@ use Hibla\Redis\Interfaces\RedisClientInterface;
 use Hibla\Redis\Internals\Connection;
 use Hibla\Redis\Internals\Pipeline;
 use Hibla\Redis\Internals\RedisSubscriber;
+use Hibla\Redis\Internals\RedisTransaction;
 use Hibla\Redis\Manager\PoolManager;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Socket\Interfaces\ConnectorInterface;
+
+use function Hibla\async;
+use function Hibla\await;
 
 final class RedisClient implements RedisClientInterface
 {
@@ -249,6 +254,76 @@ final class RedisClient implements RedisClientInterface
         $promise->onCancel($subscriber->close(...));
 
         return Promise::propagateCancellation($promise);
+    }
+
+    /**
+       * {@inheritDoc}
+       *
+       * @template TResult
+       *
+       * @param callable(Interfaces\RedisTransactionInterface): TResult $callback
+       *
+       * @return PromiseInterface<TResult>
+       */
+    public function transaction(callable $callback): PromiseInterface
+    {
+        if ($this->pool === null) {
+            return Promise::rejected(new ConnectionException('Client is closed'));
+        }
+
+        $pool = $this->pool;
+
+        /** @var RedisTransaction|null $activeTx */
+        $activeTx = null;
+
+        $fiberPromise = async(function () use ($callback, $pool, &$activeTx) {
+            /** @var Connection $conn */
+            $conn = await($pool->get());
+            $activeTx = new RedisTransaction($conn, $pool);
+
+            try {
+                $innerWorkPromise = async(fn () => $callback($activeTx));
+                $result = await($innerWorkPromise);
+
+                if ($activeTx->isInMulti()) {
+                    /** @var TResult */
+                    // @phpstan-ignore-next-line varTag.type
+                    return await($activeTx->exec());
+                }
+
+                return $result;
+            } catch (\Throwable $e) {
+                if (
+                    $e instanceof CancelledException
+                    && isset($innerWorkPromise)
+                    && ! $innerWorkPromise->isSettled()
+                ) {
+                    $innerWorkPromise->cancel();
+                }
+
+                if ($activeTx->isActive()) {
+                    try {
+                        $activeTx->forceCancelCurrentQuery();
+                        await($activeTx->abort());
+                    } catch (\Throwable) {
+                        // Ignore cleanup failure and the original exception takes precedence
+                    }
+                }
+
+                throw $e;
+            } finally {
+                $activeTx->release();
+                $activeTx = null;
+            }
+        });
+
+        $fiberPromise->onCancel(function () use (&$activeTx): void {
+            if ($activeTx !== null && $activeTx->isActive()) {
+                $activeTx->forceCancelCurrentQuery();
+            }
+        });
+
+        return Promise::propagateCancellation($fiberPromise);
     }
 
     /**

@@ -83,6 +83,20 @@ interface RedisClientInterface extends RedisCommandsInterface
     public function createSubscriber(float $minReconnectInterval = 1.0, float $maxReconnectInterval = 30.0): PromiseInterface;
 
     /**
+     * Executes a callback within an isolated Redis connection for transactions and optimistic locking.
+     *
+     * Borrows a connection from the pool, provides a RedisTransaction handle to the callback,
+     * and automatically cleans up (DISCARD/UNWATCH) if an exception or cancellation occurs.
+     *
+     * @template TResult
+     *
+     * @param callable(RedisTransactionInterface): TResult $callback
+     *
+     * @return PromiseInterface<TResult>
+     */
+    public function transaction(callable $callback): PromiseInterface;
+
+    /**
      * Initiates a graceful shutdown of the connection pool.
      *
      * Rejects any new commands, but allows currently active commands to finish
