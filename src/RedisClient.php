@@ -9,9 +9,11 @@ use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\BlpopCommand;
 use Hibla\Redis\Command\DelCommand;
+use Hibla\Redis\Command\ExecCommand;
 use Hibla\Redis\Command\GetCommand;
 use Hibla\Redis\Command\HgetallCommand;
 use Hibla\Redis\Command\MgetCommand;
+use Hibla\Redis\Command\MultiCommand;
 use Hibla\Redis\Command\PingCommand;
 use Hibla\Redis\Command\PublishCommand;
 use Hibla\Redis\Command\SetCommand;
@@ -295,7 +297,7 @@ final class RedisClient implements RedisClientInterface
 
                 $state->activeTx = new RedisTransaction($conn, $pool);
 
-                $state->innerWorkPromise = async(fn () => $callback($state->activeTx));
+                $state->innerWorkPromise = async(fn() => $callback($state->activeTx));
                 $result = await($state->innerWorkPromise);
 
                 if ($state->activeTx->isInMulti()) {
@@ -358,6 +360,115 @@ final class RedisClient implements RedisClientInterface
         $resultPromise = Promise::propagateCancellation($fiberPromise);
 
         return $resultPromise;
+    }
+
+    /**
+     * Executes multiple commands inside a MULTI/EXEC block in a single TCP write.
+     * Perfect for atomic "fire and forget" operations that do not require WATCH.
+     *
+     * @param callable(Interfaces\PipelineInterface): void $callback
+     * @return PromiseInterface<array<int, mixed>> Resolves to the array of EXEC results.
+     */
+    public function atomic(callable $callback): PromiseInterface
+    {
+        if ($this->pool === null) {
+            return Promise::rejected(new ConnectionException('Client is closed'));
+        }
+
+        $pipeline = new Pipeline();
+        $callback($pipeline);
+
+        $pipeline->lock();
+        $commands = $pipeline->commands;
+
+        if ($commands === []) {
+            return Promise::resolved([]);
+        }
+
+        $wrappedCommands = [new MultiCommand(), ...$commands, new ExecCommand()];
+
+        /** @var Promise<array<int, mixed>> $outerPromise */
+        $outerPromise = new Promise();
+
+        $pool = $this->pool;
+        $connection = null;
+
+        $poolPromise = $pool->get();
+        $poolPromise->then(function (Internals\Connection $conn) use ($commands, $wrappedCommands, &$connection, $outerPromise, $pool): void {
+            $connection = $conn;
+
+            if ($outerPromise->isCancelled()) {
+                $pool->release($connection);
+                return;
+            }
+
+            $innerPromise = $conn->enqueueBatch($wrappedCommands);
+
+            $innerPromise->then(
+                function (array $results) use ($commands, $outerPromise): void {
+                    $execResults = array_pop($results);
+
+                    if ($execResults instanceof \Throwable) {
+                        if (! $outerPromise->isSettled()) {
+                            $outerPromise->reject($execResults);
+                        }
+                        return;
+                    }
+
+                    if (! \is_array($execResults)) {
+                        if (! $outerPromise->isSettled()) {
+                            $outerPromise->resolve($execResults ?? []);
+                        }
+                        return;
+                    }
+
+                    // Map the raw Redis responses through the specific command parsers
+                    $formatted = [];
+                    foreach ($execResults as $i => $raw) {
+                        if ($raw instanceof \Throwable) {
+                            $formatted[$i] = $raw; // Keep Redis execution errors as Throwables
+                        } elseif (isset($commands[$i])) {
+                            $formatted[$i] = $commands[$i]->parseResponse($raw);
+                        } else {
+                            $formatted[$i] = $raw;
+                        }
+                    }
+
+                    if (! $outerPromise->isSettled()) {
+                        $outerPromise->resolve($formatted);
+                    }
+                },
+                function (\Throwable $e) use ($outerPromise): void {
+                    if (! $outerPromise->isSettled()) {
+                        $outerPromise->reject($e);
+                    }
+                }
+            );
+
+            $outerPromise->onCancel(function () use ($innerPromise): void {
+                if (! $innerPromise->isSettled()) {
+                    $innerPromise->cancel();
+                }
+            });
+        }, function (\Throwable $e) use ($outerPromise): void {
+            if (! $outerPromise->isSettled()) {
+                $outerPromise->reject($e);
+            }
+        });
+
+        $outerPromise->finally(function () use ($pool, &$connection): void {
+            if ($connection !== null) {
+                $pool->release($connection);
+            }
+        });
+
+        $outerPromise->onCancel(function () use ($poolPromise): void {
+            if (! $poolPromise->isSettled()) {
+                $poolPromise->cancel();
+            }
+        });
+
+        return $outerPromise;
     }
 
     /**
@@ -464,8 +575,7 @@ final class RedisClient implements RedisClientInterface
 
                 $this->pool = null;
                 $this->closePromise = null;
-            })
-        ;
+            });
 
         return $this->closePromise;
     }
