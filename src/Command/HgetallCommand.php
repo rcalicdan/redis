@@ -24,10 +24,14 @@ final class HgetallCommand extends AbstractCommand
     /**
      * {@inheritDoc}
      *
-     * @return array<string, string>
+     * @return mixed
      */
     public function parseResponse(mixed $data): mixed
     {
+        if ($data === 'QUEUED') {
+            return 'QUEUED';
+        }
+
         if (! \is_array($data)) {
             return [];
         }

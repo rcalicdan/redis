@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use Hibla\Promise\Promise;
 use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Exceptions\TransactionException;
 use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\RedisClient;
 
 use function Hibla\await;
+use function Hibla\delay;
 
 describe('RedisClient - Transactions', function (): void {
 
@@ -75,7 +77,6 @@ describe('RedisClient - Transactions', function (): void {
             $hset = new class (['tx_hash', 'field1', 'value1']) extends AbstractCommand {
                 public string $id = 'HSET';
             };
-
             await($client->executeCommand($hset));
             await($client->set('tx_str_1', 'hello'));
             await($client->set('tx_str_2', 'world'));
@@ -153,6 +154,7 @@ describe('RedisClient - Transactions', function (): void {
 
             $results = await($client->transaction(function (RedisTransactionInterface $tx) use ($otherClient) {
                 await($tx->watch('watch_conflict'));
+
                 await($otherClient->set('watch_conflict', '999'));
 
                 await($tx->multi());
@@ -163,6 +165,63 @@ describe('RedisClient - Transactions', function (): void {
 
             expect($results)->toBeNull()
                 ->and(await($client->get('watch_conflict')))->toBe('999')
+            ;
+
+        } finally {
+            $client->close();
+            $otherClient->close();
+        }
+    });
+
+    it('fails EXEC if any one of multiple watched keys is modified', function () {
+        $client = new RedisClient(getConfig());
+        $otherClient = new RedisClient(getConfig());
+
+        try {
+            await($client->set('w_key_1', '1'));
+            await($client->set('w_key_2', '2'));
+
+            $result = await($client->transaction(function (RedisTransactionInterface $tx) use ($otherClient) {
+                await($tx->watch('w_key_1', 'w_key_2'));
+
+                await($otherClient->set('w_key_2', 'modified'));
+
+                await($tx->multi());
+                await($tx->set('w_key_1', 'new_1'));
+
+                return await($tx->exec());
+            }));
+
+            expect($result)->toBeNull()
+                ->and(await($client->get('w_key_1')))->toBe('1')
+            ;
+
+        } finally {
+            $client->close();
+            $otherClient->close();
+        }
+    });
+
+    it('fails EXEC if a watched non-existent key is created before exec', function () {
+        $client = new RedisClient(getConfig());
+        $otherClient = new RedisClient(getConfig());
+
+        try {
+            await($client->del('w_missing_key'));
+
+            $result = await($client->transaction(function (RedisTransactionInterface $tx) use ($otherClient) {
+                await($tx->watch('w_missing_key'));
+
+                await($otherClient->set('w_missing_key', 'created'));
+
+                await($tx->multi());
+                await($tx->set('w_missing_key', 'tx_override'));
+
+                return await($tx->exec());
+            }));
+
+            expect($result)->toBeNull()
+                ->and(await($client->get('w_missing_key')))->toBe('created')
             ;
 
         } finally {
@@ -200,6 +259,69 @@ describe('RedisClient - Transactions', function (): void {
         }
     });
 
+    it('allows normal commands on the dedicated connection before calling multi()', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            await($client->set('pre_tx_key', 'pre_val'));
+
+            $results = await($client->transaction(function (RedisTransactionInterface $tx) {
+                $readVal = await($tx->get('pre_tx_key'));
+                expect($readVal)->toBe('pre_val');
+
+                await($tx->multi());
+                await($tx->set('post_tx_key', 'post_' . $readVal));
+
+                return await($tx->exec());
+            }));
+
+            expect($results)->toBe(['OK'])
+                ->and(await($client->get('post_tx_key')))->toBe('post_pre_val')
+            ;
+
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('allows calling discard() multiple times without throwing errors', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            await($client->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->multi());
+                await($tx->set('idempotent_key', 'val'));
+
+                $d1 = await($tx->discard());
+                $d2 = await($tx->discard());
+
+                expect($d1)->toBe('OK')
+                    ->and($d2)->toBe('OK')
+                ;
+            }));
+
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('executes an empty MULTI block cleanly', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            $results = await($client->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->multi());
+
+                return await($tx->exec());
+            }));
+
+            expect($results)->toBeArray()->toBeEmpty();
+
+        } finally {
+            $client->close();
+        }
+    });
+
     it('queues BLPOP without blocking inside a transaction', function () {
         $client = new RedisClient(getConfig());
 
@@ -212,6 +334,61 @@ describe('RedisClient - Transactions', function (): void {
             }));
 
             expect($results)->toBe([null]);
+
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('runs concurrent transactions on separate connections safely', function () {
+        $client = new RedisClient(getConfig(), maxConnections: 3);
+
+        try {
+            $tx1 = $client->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->multi());
+                await($tx->set('conc_tx_1', 'val1'));
+                await(delay(0.02));
+
+                return await($tx->exec());
+            });
+
+            $tx2 = $client->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->multi());
+                await($tx->set('conc_tx_2', 'val2'));
+
+                return await($tx->exec());
+            });
+
+            $results = await(Promise::all([$tx1, $tx2]));
+
+            expect($results[0])->toBe(['OK'])
+                ->and($results[1])->toBe(['OK'])
+                ->and(await($client->get('conc_tx_1')))->toBe('val1')
+                ->and(await($client->get('conc_tx_2')))->toBe('val2')
+            ;
+
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('supports custom commands inside MULTI via executeCommand()', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            $incrCmd = new class (['custom_counter']) extends AbstractCommand {
+                public string $id = 'INCR';
+            };
+
+            $results = await($client->transaction(function (RedisTransactionInterface $tx) use ($incrCmd) {
+                await($tx->multi());
+                await($tx->executeCommand($incrCmd));
+                await($tx->executeCommand($incrCmd));
+
+                return await($tx->exec());
+            }));
+
+            expect($results)->toBe([1, 2]);
 
         } finally {
             $client->close();
@@ -233,7 +410,6 @@ describe('RedisClient - Transactions', function (): void {
                     try {
                         await($tx->executeCommand($brokenCmd));
                     } catch (Throwable) {
-                        // Suppress exception to continue block
                     }
 
                     await($tx->set('should_fail', 'val'));
@@ -261,7 +437,52 @@ describe('RedisClient - Transactions', function (): void {
             })->toThrow(RuntimeException::class, 'User code crashed!');
 
             expect(await($client->get('tx_error_key')))->toBeNull();
+
             expect(await($client->ping('Alive')))->toBe('Alive');
+
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('returns user-defined custom return value when MULTI is omitted', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            $customResult = await($client->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->set('non_multi_key', 'hello'));
+
+                return 'custom_response_value';
+            }));
+
+            expect($customResult)->toBe('custom_response_value')
+                ->and(await($client->get('non_multi_key')))->toBe('hello')
+            ;
+
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('maintains pool health and returns connections cleanly after repeated failures', function () {
+        $client = new RedisClient(getConfig(), minConnections: 2, maxConnections: 2);
+
+        try {
+            for ($i = 0; $i < 5; $i++) {
+                try {
+                    await($client->transaction(function (RedisTransactionInterface $tx) use ($i) {
+                        await($tx->multi());
+                        await($tx->set("fail_key_{$i}", 'val'));
+
+                        throw new RuntimeException("Simulated crash {$i}");
+                    }));
+                } catch (RuntimeException) {
+                }
+            }
+
+            expect($client->stats['active_connections'])->toBe(0)
+                ->and(await($client->ping('PoolIsClean')))->toBe('PoolIsClean')
+            ;
 
         } finally {
             $client->close();
@@ -272,7 +493,6 @@ describe('RedisClient - Transactions', function (): void {
         $client = new RedisClient(getConfig());
 
         try {
-            /** @var RedisTransactionInterface|null $leakedTx */
             $leakedTx = null;
 
             await($client->transaction(function (RedisTransactionInterface $tx) use (&$leakedTx) {
@@ -291,7 +511,7 @@ describe('RedisClient - Transactions', function (): void {
         }
     });
 
-    it('prevents invalid transaction states (nested MULTI, WATCH inside MULTI, EXEC without MULTI)', function () {
+    it('prevents invalid transaction states (nested MULTI, WATCH inside MULTI, EXEC without MULTI, DISCARD without MULTI)', function () {
         $client = new RedisClient(getConfig());
 
         try {
@@ -314,6 +534,12 @@ describe('RedisClient - Transactions', function (): void {
                     await($tx->exec());
                 }));
             })->toThrow(TransactionException::class, 'EXEC without MULTI');
+
+            expect(function () use ($client) {
+                await($client->transaction(function (RedisTransactionInterface $tx) {
+                    await($tx->discard());
+                }));
+            })->toThrow(TransactionException::class, 'DISCARD without MULTI');
 
         } finally {
             $client->close();

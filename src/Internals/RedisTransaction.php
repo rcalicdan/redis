@@ -27,7 +27,7 @@ use Hibla\Redis\Manager\PoolManager;
  * Transaction implementation with automatic pool management, strict state checking,
  * and error-tainting.
  *
- * @internal Created by RedisClient::transaction() and do not instantiate directly.
+ * @internal Created by RedisClient::transaction() - do not instantiate directly.
  */
 final class RedisTransaction implements RedisTransactionInterface
 {
@@ -35,21 +35,16 @@ final class RedisTransaction implements RedisTransactionInterface
 
     private bool $released = false;
 
-    /**
-     * Set to true when any command within the transaction fails or is cancelled.
-     * Prevents further commands from being queued until discard() is called.
-     */
     private bool $failed = false;
 
-    /**
-     * @var bool True if MULTI has been called and we are queueing commands
-     */
     private bool $inMulti = false;
 
-    /**
-     * @var bool True if WATCH has been called and keys are monitored
-     */
     private bool $isWatched = false;
+
+    /**
+     * @var array<int, CommandInterface<mixed>> Commands queued inside MULTI block.
+     */
+    private array $queuedCommands = [];
 
     public function __construct(
         private readonly Connection $connection,
@@ -63,6 +58,10 @@ final class RedisTransaction implements RedisTransactionInterface
     public function executeCommand(CommandInterface $command): PromiseInterface
     {
         $this->ensureActiveAndNotFailed();
+
+        if ($this->inMulti) {
+            $this->queuedCommands[] = $command;
+        }
 
         $promise = $this->connection->enqueue($command);
 
@@ -120,6 +119,7 @@ final class RedisTransaction implements RedisTransactionInterface
 
         $promise->then(function (): void {
             $this->inMulti = true;
+            $this->queuedCommands = [];
         })->catch(static fn () => null);
 
         return Promise::propagateCancellation($this->trackErrorState($promise));
@@ -145,21 +145,42 @@ final class RedisTransaction implements RedisTransactionInterface
             return Promise::rejected(new TransactionException('EXEC without MULTI'));
         }
 
-        $this->active = false; // Mark transaction as finished
+        $this->active = false;
+
+        $queuedCommands = $this->queuedCommands;
+        $this->queuedCommands = [];
 
         $promise = $this->connection->enqueue(new ExecCommand());
 
-        $promise->then(
-            function (): void {
+        /** @var PromiseInterface<array<int, mixed>|null> $execPromise */
+        $execPromise = $promise->then(
+            function (mixed $results) use ($queuedCommands): mixed {
                 $this->inMulti = false;
                 $this->isWatched = false;
+
+                if (! \is_array($results)) {
+                    return $results;
+                }
+
+                $formatted = [];
+                foreach ($results as $i => $raw) {
+                    if (isset($queuedCommands[$i])) {
+                        $formatted[$i] = $queuedCommands[$i]->parseResponse($raw);
+                    } else {
+                        $formatted[$i] = $raw;
+                    }
+                }
+
+                return $formatted;
             },
-            function (): void {
+            function (\Throwable $e): never {
                 $this->failed = true;
+
+                throw $e;
             }
         )->finally($this->release(...));
 
-        return Promise::uninterruptible($promise);
+        return Promise::uninterruptible($execPromise);
     }
 
     /**
@@ -181,6 +202,7 @@ final class RedisTransaction implements RedisTransactionInterface
 
         $this->active = false;
         $this->failed = false;
+        $this->queuedCommands = [];
 
         $promise = $this->connection->enqueue(new DiscardCommand());
 
@@ -317,6 +339,7 @@ final class RedisTransaction implements RedisTransactionInterface
         }
 
         $this->released = true;
+        $this->queuedCommands = [];
 
         if ($this->connection->isClosed()) {
             $this->pool->release($this->connection);
