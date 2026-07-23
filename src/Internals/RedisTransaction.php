@@ -99,11 +99,9 @@ final class RedisTransaction implements RedisTransactionInterface
             return Promise::rejected(new TransactionException('WATCH inside MULTI is not allowed'));
         }
 
-        $promise = $this->connection->enqueue(new WatchCommand($keys));
+        $this->isWatched = true;
 
-        $promise->then(function (): void {
-            $this->isWatched = true;
-        })->catch(static fn () => null);
+        $promise = $this->connection->enqueue(new WatchCommand($keys));
 
         return Promise::propagateCancellation($this->trackErrorState($promise));
     }
@@ -115,11 +113,9 @@ final class RedisTransaction implements RedisTransactionInterface
     {
         $this->ensureActive();
 
-        $promise = $this->connection->enqueue(new UnwatchCommand());
+        $this->isWatched = false;
 
-        $promise->then(function (): void {
-            $this->isWatched = false;
-        })->catch(static fn () => null);
+        $promise = $this->connection->enqueue(new UnwatchCommand());
 
         return Promise::propagateCancellation($promise);
     }
@@ -135,12 +131,10 @@ final class RedisTransaction implements RedisTransactionInterface
             return Promise::rejected(new TransactionException('MULTI calls cannot be nested'));
         }
 
-        $promise = $this->connection->enqueue(new MultiCommand());
+        $this->inMulti = true;
+        $this->queuedCommands = [];
 
-        $promise->then(function (): void {
-            $this->inMulti = true;
-            $this->queuedCommands = [];
-        })->catch(static fn () => null);
+        $promise = $this->connection->enqueue(new MultiCommand());
 
         return Promise::propagateCancellation($this->trackErrorState($promise));
     }
@@ -166,6 +160,8 @@ final class RedisTransaction implements RedisTransactionInterface
         }
 
         $this->active = false;
+        $this->inMulti = false;
+        $this->isWatched = false;
 
         $queuedCommands = $this->queuedCommands;
         $this->queuedCommands = [];
@@ -175,9 +171,6 @@ final class RedisTransaction implements RedisTransactionInterface
         /** @var PromiseInterface<array<int, mixed>|null> $execPromise */
         $execPromise = $promise->then(
             function (mixed $results) use ($queuedCommands): mixed {
-                $this->inMulti = false;
-                $this->isWatched = false;
-
                 if (! \is_array($results)) {
                     return $results;
                 }
@@ -198,7 +191,9 @@ final class RedisTransaction implements RedisTransactionInterface
 
                 throw $e;
             }
-        )->finally($this->release(...));
+        );
+
+        $execPromise->finally($this->release(...))->catch(static fn () => null);
 
         return Promise::uninterruptible($execPromise);
     }
@@ -217,21 +212,16 @@ final class RedisTransaction implements RedisTransactionInterface
             return Promise::rejected(new TransactionException('DISCARD without MULTI'));
         }
 
-        // Clear any hanging queries on the wire before sending DISCARD
         $this->forceCancelCurrentQuery();
-
         $this->active = false;
         $this->failed = false;
+        $this->inMulti = false;
+        $this->isWatched = false;
         $this->queuedCommands = [];
 
         $promise = $this->connection->enqueue(new DiscardCommand());
 
-        $promise->then(
-            function (): void {
-                $this->inMulti = false;
-                $this->isWatched = false;
-            }
-        )->finally($this->release(...));
+        $promise->finally($this->release(...))->catch(static fn () => null);
 
         return Promise::uninterruptible($promise);
     }
@@ -337,10 +327,9 @@ final class RedisTransaction implements RedisTransactionInterface
 
         if ($this->isWatched) {
             $this->forceCancelCurrentQuery();
+            $this->isWatched = false;
+
             $promise = $this->connection->enqueue(new UnwatchCommand());
-            $promise->then(function (): void {
-                $this->isWatched = false;
-            })->catch(static fn () => null);
 
             return $promise;
         }
@@ -371,7 +360,7 @@ final class RedisTransaction implements RedisTransactionInterface
             $this->forceCancelCurrentQuery();
             $this->connection->enqueue(new DiscardCommand())->finally(function (): void {
                 $this->pool->release($this->connection);
-            });
+            })->catch(static fn () => null);
 
             return;
         }
@@ -380,7 +369,7 @@ final class RedisTransaction implements RedisTransactionInterface
             $this->forceCancelCurrentQuery();
             $this->connection->enqueue(new UnwatchCommand())->finally(function (): void {
                 $this->pool->release($this->connection);
-            });
+            })->catch(static fn () => null);
 
             return;
         }

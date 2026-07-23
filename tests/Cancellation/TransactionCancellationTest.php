@@ -208,4 +208,135 @@ describe('RedisClient - Transaction Cancellation', function (): void {
             $client->close();
         }
     });
+
+    it('executes discard on Redis even if discard promise itself is cancelled due to uninterruptible semantics', function () {
+        $client = new RedisClient(getConfig());
+        $key = 'discard_cancel_key_' . uniqid();
+
+        try {
+            await($client->transaction(function (RedisTransactionInterface $tx) use ($key) {
+                await($tx->multi());
+                await($tx->set($key, 'should_be_discarded'));
+
+                $discardPromise = $tx->discard();
+                $discardPromise->cancel();
+
+                try {
+                    await($discardPromise);
+                } catch (CancelledException) {
+                }
+            }));
+
+            await(delay(0.05));
+
+            expect(await($client->get($key)))->toBeNull()
+                ->and($client->stats['active_connections'])->toBe(0)
+            ;
+
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('taints transaction when watch promise is cancelled mid-flight', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            expect(function () use ($client) {
+                await($client->transaction(function (RedisTransactionInterface $tx) {
+                    $watchPromise = $tx->watch('watch_taint_key');
+                    $watchPromise->cancel();
+
+                    try {
+                        await($watchPromise);
+                    } catch (CancelledException) {
+                    }
+
+                    await($tx->multi());
+                }));
+            })->toThrow(TransactionException::class, 'Transaction aborted due to a previous command error or cancellation');
+
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('taints transaction when multi promise is cancelled mid-flight', function () {
+        $client = new RedisClient(getConfig());
+        $key = 'multi_cancel_key_' . uniqid();
+
+        try {
+            expect(function () use ($client, $key) {
+                await($client->transaction(function (RedisTransactionInterface $tx) use ($key) {
+                    $multiPromise = $tx->multi();
+                    $multiPromise->cancel();
+
+                    try {
+                        await($multiPromise);
+                    } catch (CancelledException) {
+                    }
+
+                    await($tx->set($key, 'fail'));
+                }));
+            })->toThrow(TransactionException::class, 'Transaction aborted due to a previous command error or cancellation');
+
+            expect(await($client->get($key)))->toBeNull();
+
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('cleans up pool safely when multiple concurrent transactions are cancelled simultaneously', function () {
+        $client = new RedisClient(getConfig(), maxConnections: 3);
+
+        try {
+            $tx1 = $client->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->multi());
+                await($tx->set('concurrent_c_1_' . uniqid(), '1'));
+                await(delay(2.0));
+            });
+
+            $tx2 = $client->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->multi());
+                await($tx->set('concurrent_c_2_' . uniqid(), '2'));
+                await(delay(2.0));
+            });
+
+            $tx3 = $client->transaction(function (RedisTransactionInterface $tx) {
+                await($tx->multi());
+                await($tx->set('concurrent_c_3_' . uniqid(), '3'));
+                await(delay(2.0));
+            });
+
+            for ($attempt = 0; $attempt < 50; $attempt++) {
+                if ($client->stats['active_connections'] === 3) {
+                    break;
+                }
+                await(delay(0.01));
+            }
+
+            $tx1->cancel();
+            $tx2->cancel();
+            $tx3->cancel();
+
+            expect(fn () => await($tx1))->toThrow(CancelledException::class);
+            expect(fn () => await($tx2))->toThrow(CancelledException::class);
+            expect(fn () => await($tx3))->toThrow(CancelledException::class);
+
+            for ($attempt = 0; $attempt < 50; $attempt++) {
+                if ($client->stats['active_connections'] === 0) {
+                    break;
+                }
+                await(delay(0.01));
+            }
+
+            expect($client->stats['active_connections'])->toBe(0)
+                ->and(await($client->ping('AllClean')))->toBe('AllClean')
+            ;
+
+        } finally {
+            $client->close();
+        }
+    });
 });
