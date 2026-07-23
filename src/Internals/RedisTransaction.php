@@ -6,6 +6,7 @@ namespace Hibla\Redis\Internals;
 
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
+use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Command\BlpopCommand;
 use Hibla\Redis\Command\DelCommand;
 use Hibla\Redis\Command\DiscardCommand;
@@ -53,7 +54,11 @@ final class RedisTransaction implements RedisTransactionInterface
     }
 
     /**
+     * @template TReturn
+     *
      * {@inheritDoc}
+     *
+     * @return PromiseInterface<TReturn>
      */
     public function executeCommand(CommandInterface $command): PromiseInterface
     {
@@ -61,10 +66,25 @@ final class RedisTransaction implements RedisTransactionInterface
 
         if ($this->inMulti) {
             $this->queuedCommands[] = $command;
+
+            $rawCmd = new class ($command->id, $command->arguments) extends AbstractCommand {
+                public function __construct(public string $id, array $args)
+                {
+                    parent::__construct($args);
+                }
+            };
+
+            $promise = $this->connection->enqueue($rawCmd);
+
+            /** @var PromiseInterface<TReturn> $queuedPromise */
+            $queuedPromise = Promise::propagateCancellation($this->trackErrorState($promise));
+
+            return $queuedPromise;
         }
 
         $promise = $this->connection->enqueue($command);
 
+        // @phpstan-ignore return.type (At runtime inside MULTI, Redis returns 'QUEUED' instead of TReturn)
         return Promise::propagateCancellation($this->trackErrorState($promise));
     }
 

@@ -22,6 +22,7 @@ use Hibla\Redis\Internals\Connection;
 use Hibla\Redis\Internals\Pipeline;
 use Hibla\Redis\Internals\RedisSubscriber;
 use Hibla\Redis\Internals\RedisTransaction;
+use Hibla\Redis\Internals\TransactionExecutionState;
 use Hibla\Redis\Manager\PoolManager;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Socket\Interfaces\ConnectorInterface;
@@ -257,14 +258,14 @@ final class RedisClient implements RedisClientInterface
     }
 
     /**
-       * {@inheritDoc}
-       *
-       * @template TResult
-       *
-       * @param callable(Interfaces\RedisTransactionInterface): TResult $callback
-       *
-       * @return PromiseInterface<TResult>
-       */
+     * {@inheritDoc}
+     *
+     * @template TResult
+     *
+     * @param callable(Interfaces\RedisTransactionInterface): TResult $callback
+     *
+     * @return PromiseInterface<TResult>
+     */
     public function transaction(callable $callback): PromiseInterface
     {
         if ($this->pool === null) {
@@ -272,39 +273,57 @@ final class RedisClient implements RedisClientInterface
         }
 
         $pool = $this->pool;
+        $state = new TransactionExecutionState();
 
-        /** @var RedisTransaction|null $activeTx */
-        $activeTx = null;
-
-        $fiberPromise = async(function () use ($callback, $pool, &$activeTx) {
-            /** @var Connection $conn */
-            $conn = await($pool->get());
-            $activeTx = new RedisTransaction($conn, $pool);
+        $fiberPromise = async(function () use ($callback, $pool, $state) {
+            if ($state->isCancelled) {
+                return null;
+            }
 
             try {
-                $innerWorkPromise = async(fn () => $callback($activeTx));
-                $result = await($innerWorkPromise);
+                $state->poolPromise = $pool->get();
+                /** @var Connection $conn */
+                $conn = await($state->poolPromise);
+                $state->poolPromise = null;
 
-                if ($activeTx->isInMulti()) {
-                    /** @var TResult */
-                    // @phpstan-ignore-next-line varTag.type
-                    return await($activeTx->exec());
+                // @phpstan-ignore-next-line if.alwaysFalse
+                if ($state->isCancelled) {
+                    $pool->release($conn);
+
+                    return null;
+                }
+
+                $state->activeTx = new RedisTransaction($conn, $pool);
+
+                $state->innerWorkPromise = async(fn () => $callback($state->activeTx));
+                $result = await($state->innerWorkPromise);
+
+                if ($state->activeTx->isInMulti()) {
+                    $execResult = await($state->activeTx->exec());
+
+                    /** @var TResult $execResult */
+                    return $execResult; // @phpstan-ignore varTag.type
                 }
 
                 return $result;
             } catch (\Throwable $e) {
-                if (
-                    $e instanceof CancelledException
-                    && isset($innerWorkPromise)
-                    && ! $innerWorkPromise->isSettled()
-                ) {
-                    $innerWorkPromise->cancel();
+                // @phpstan-ignore-next-line if.alwaysFalse
+                if ($state->isCancelled) {
+                    return null;
                 }
 
-                if ($activeTx->isActive()) {
+                if (
+                    $e instanceof CancelledException
+                    && $state->innerWorkPromise !== null
+                    && ! $state->innerWorkPromise->isSettled()
+                ) {
+                    $state->innerWorkPromise->cancel();
+                }
+
+                if ($state->activeTx !== null && $state->activeTx->isActive()) {
                     try {
-                        $activeTx->forceCancelCurrentQuery();
-                        await($activeTx->abort());
+                        $state->activeTx->forceCancelCurrentQuery();
+                        await($state->activeTx->abort());
                     } catch (\Throwable) {
                         // Ignore cleanup failure and the original exception takes precedence
                     }
@@ -312,18 +331,33 @@ final class RedisClient implements RedisClientInterface
 
                 throw $e;
             } finally {
-                $activeTx->release();
-                $activeTx = null;
+                if ($state->activeTx !== null) {
+                    $state->activeTx->release();
+                    $state->activeTx = null;
+                }
             }
         });
 
-        $fiberPromise->onCancel(function () use (&$activeTx): void {
-            if ($activeTx !== null && $activeTx->isActive()) {
-                $activeTx->forceCancelCurrentQuery();
+        $fiberPromise->onCancel(function () use ($state): void {
+            $state->isCancelled = true;
+
+            if ($state->poolPromise !== null && ! $state->poolPromise->isSettled()) {
+                $state->poolPromise->cancel();
+            }
+
+            if ($state->innerWorkPromise !== null && ! $state->innerWorkPromise->isSettled()) {
+                $state->innerWorkPromise->cancel();
+            }
+
+            if ($state->activeTx !== null && $state->activeTx->isActive()) {
+                $state->activeTx->forceCancelCurrentQuery();
             }
         });
 
-        return Promise::propagateCancellation($fiberPromise);
+        /** @var PromiseInterface<TResult> $resultPromise */
+        $resultPromise = Promise::propagateCancellation($fiberPromise);
+
+        return $resultPromise;
     }
 
     /**

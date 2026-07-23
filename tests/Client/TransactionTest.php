@@ -376,6 +376,8 @@ describe('RedisClient - Transactions', function (): void {
         $client = new RedisClient(getConfig());
 
         try {
+            await($client->del('custom_counter'));
+
             $incrCmd = new class (['custom_counter']) extends AbstractCommand {
                 public string $id = 'INCR';
             };
