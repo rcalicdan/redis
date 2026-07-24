@@ -192,7 +192,7 @@ describe('RedisClient - Strings & Numerics', function (): void {
             expect(await($client->incr('num')))->toBe(1)
                 ->and(await($client->incrby('num', 5)))->toBe(6)
                 ->and(await($client->decr('num')))->toBe(5)
-                ->and(await($client->incrbyfloat('float_num', 2.5)))->toBe(2.5)
+                ->and((float) await($client->incrbyfloat('float_num', 2.5)))->toBe(2.5)
             ;
         } finally {
             $client->close();
@@ -402,6 +402,7 @@ describe('RedisClient - Graceful Shutdown', function (): void {
         $client->close();
 
         expect(fn () => await($client->ping()))
-            ->toThrow(ConnectionException::class, 'Client is closed');
+            ->toThrow(ConnectionException::class, 'Client is closed')
+        ;
     });
 });

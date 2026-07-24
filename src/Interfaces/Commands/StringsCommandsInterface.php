@@ -70,7 +70,7 @@ interface StringsCommandsInterface
      * @param string $key Key to increment.
      * @param float $increment Float amount to increment.
      *
-     * @return PromiseInterface<float> Updated float value.
+     * @return PromiseInterface<string> Updated float value represented as a string.
      */
     public function incrbyfloat(string $key, float $increment): PromiseInterface;
 

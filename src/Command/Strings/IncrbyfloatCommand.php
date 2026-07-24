@@ -10,22 +10,15 @@ use Hibla\Redis\Command\AbstractCommand;
  * Redis INCRBYFLOAT command.
  *
  * Increments the string representing a floating point number stored at key by specified increment.
+ * Resolves to the string representation of the new value to prevent precision loss.
  *
  * @see https://redis.io/commands/incrbyfloat/
  *
- * @extends AbstractCommand<float>
+ * @extends AbstractCommand<string>
  */
 final class IncrbyfloatCommand extends AbstractCommand
 {
     public string $id {
         get => 'INCRBYFLOAT';
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function parseResponse(mixed $data): float
-    {
-        return (float) $data;
     }
 }

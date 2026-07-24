@@ -89,7 +89,7 @@ trait StringsCommandsTrait
     /**
      * {@inheritDoc}
      *
-     * @return PromiseInterface<float>
+     * @return PromiseInterface<string>
      */
     public function incrbyfloat(string $key, float $increment): PromiseInterface
     {

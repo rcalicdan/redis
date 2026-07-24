@@ -54,7 +54,7 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                 ->and($results[4])->toBe(1)
                 ->and($results[5])->toBe(0)
                 ->and($results[6])->toBe(5)
-                ->and($results[7])->toBe(2.5)
+                ->and((float) $results[7])->toBe(2.5)
             ;
         } finally {
             $client->close();
@@ -334,7 +334,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                 ->and($statsMidFlight['active_connections'])->toBe(1)
                 ->and($statsMidFlight['total_connections'])->toBe(1)
                 ->and($statsAfter['active_connections'])->toBe(0)
-                ->and($statsAfter['pooled_connections'])->toBe(1);
+                ->and($statsAfter['pooled_connections'])->toBe(1)
+            ;
 
         } finally {
             $client->close();
