@@ -7,13 +7,6 @@ namespace Hibla\Redis\Internals;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\AbstractCommand;
-use Hibla\Redis\Command\Connection\PingCommand;
-use Hibla\Redis\Command\Hashes\HgetallCommand;
-use Hibla\Redis\Command\Keys\DelCommand;
-use Hibla\Redis\Command\Lists\BlpopCommand;
-use Hibla\Redis\Command\Strings\GetCommand;
-use Hibla\Redis\Command\Strings\MgetCommand;
-use Hibla\Redis\Command\Strings\SetCommand;
 use Hibla\Redis\Command\Transactions\DiscardCommand;
 use Hibla\Redis\Command\Transactions\ExecCommand;
 use Hibla\Redis\Command\Transactions\MultiCommand;
@@ -23,6 +16,7 @@ use Hibla\Redis\Exceptions\TransactionException;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\Manager\PoolManager;
+use Hibla\Redis\Traits\Commands\RedisCommandsTrait;
 
 /**
  * Transaction implementation with automatic pool management, strict state checking,
@@ -32,6 +26,8 @@ use Hibla\Redis\Manager\PoolManager;
  */
 final class RedisTransaction implements RedisTransactionInterface
 {
+    use RedisCommandsTrait;
+
     private bool $active = true;
 
     private bool $released = false;
@@ -212,7 +208,9 @@ final class RedisTransaction implements RedisTransactionInterface
             return Promise::rejected(new TransactionException('DISCARD without MULTI'));
         }
 
+        // Clear any hanging queries on the wire before sending DISCARD
         $this->forceCancelCurrentQuery();
+
         $this->active = false;
         $this->failed = false;
         $this->inMulti = false;
@@ -224,65 +222,6 @@ final class RedisTransaction implements RedisTransactionInterface
         $promise->finally($this->release(...))->catch(static fn () => null);
 
         return Promise::uninterruptible($promise);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function ping(?string $message = null): PromiseInterface
-    {
-        return $this->executeCommand(new PingCommand($message === null ? [] : [$message]));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function get(string $key): PromiseInterface
-    {
-        return $this->executeCommand(new GetCommand([$key]));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function set(string $key, mixed $value): PromiseInterface
-    {
-        return $this->executeCommand(new SetCommand([$key, $value]));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function del(string ...$keys): PromiseInterface
-    {
-        return $this->executeCommand(new DelCommand($keys));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function mget(string ...$keys): PromiseInterface
-    {
-        return $this->executeCommand(new MgetCommand($keys));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function hgetall(string $key): PromiseInterface
-    {
-        return $this->executeCommand(new HgetallCommand([$key]));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public function blpop(string|array $keys, float|int $timeout = 0): PromiseInterface
-    {
-        $args = \is_array($keys) ? $keys : [$keys];
-        $args[] = $timeout;
-
-        return $this->executeCommand(new BlpopCommand($args));
     }
 
     public function isActive(): bool
@@ -327,7 +266,7 @@ final class RedisTransaction implements RedisTransactionInterface
 
         if ($this->isWatched) {
             $this->forceCancelCurrentQuery();
-            $this->isWatched = false;
+            $this->isWatched = false; 
 
             $promise = $this->connection->enqueue(new UnwatchCommand());
 
@@ -360,7 +299,7 @@ final class RedisTransaction implements RedisTransactionInterface
             $this->forceCancelCurrentQuery();
             $this->connection->enqueue(new DiscardCommand())->finally(function (): void {
                 $this->pool->release($this->connection);
-            })->catch(static fn () => null);
+            })->catch(static fn () => null); 
 
             return;
         }
@@ -369,7 +308,7 @@ final class RedisTransaction implements RedisTransactionInterface
             $this->forceCancelCurrentQuery();
             $this->connection->enqueue(new UnwatchCommand())->finally(function (): void {
                 $this->pool->release($this->connection);
-            })->catch(static fn () => null);
+            })->catch(static fn () => null); 
 
             return;
         }
