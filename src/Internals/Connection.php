@@ -12,8 +12,6 @@ use Hibla\Redis\Enums\ConnectionState;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Handlers\CommandHandler;
 use Hibla\Redis\Interfaces\CommandInterface;
-use Hibla\Redis\Internals\CommandRequest;
-use Hibla\Redis\Internals\ConnectionContext;
 use Hibla\Redis\ValueObjects\RedisConfig;
 use Hibla\Socket\Connector;
 use Hibla\Socket\Interfaces\ConnectionInterface as SocketConnection;

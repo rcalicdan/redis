@@ -9,8 +9,8 @@ use Hibla\Redis\Command\AbstractCommand;
 /**
  * Redis PUBLISH command.
  *
- * Posts a message to the given channel.
- * Resolves to the integer number of clients that received the message.
+ * Posts a message payload to the specified channel.
+ * Resolves to the integer number of subscribed clients that received the message.
  *
  * @see https://redis.io/commands/publish/
  *
