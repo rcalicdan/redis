@@ -97,6 +97,15 @@ interface RedisClientInterface extends RedisCommandsInterface
     public function transaction(callable $callback): PromiseInterface;
 
     /**
+     * Executes multiple commands inside a MULTI/EXEC block in a single TCP write.
+     * Perfect for atomic "fire and forget" operations that do not require WATCH.
+     *
+     * @param callable(PipelineInterface): void $callback
+     * @return PromiseInterface<array<int, mixed>> Resolves to the array of EXEC results.
+     */
+    public function atomic(callable $callback): PromiseInterface;
+
+    /**
      * Initiates a graceful shutdown of the connection pool.
      *
      * Rejects any new commands, but allows currently active commands to finish

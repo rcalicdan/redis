@@ -38,6 +38,7 @@ it('can pipeline multiple commands seamlessly', function () {
         $promise2 = $connection->enqueue(new GetCommand(['test_pipeline']));
         $promise3 = $connection->enqueue(new PingCommand(['ALIVE']));
 
+        /** @var array<int, mixed> $results */
         $results = await(Promise::all([$promise1, $promise2, $promise3]));
 
         expect($results[0])->toBe('OK')
@@ -86,7 +87,7 @@ it('rejects pending promises when the connection is closed abruptly', function (
     $connection = await(Connection::create($config));
 
     try {
-        $connection->enqueue(new BlpopCommand(['empty_list', 0]))->catch(fn () => null);
+        $connection->enqueue(new BlpopCommand(['empty_list', 0]))->catch(fn() => null);
 
         $pendingPromise = $connection->enqueue(new GetCommand(['some_key']));
         $connection->close();
@@ -158,12 +159,12 @@ it('rejects pending promises when the server hangs up the connection', function 
     $config = getConfig();
     $connection = await(Connection::create($config));
 
-    $quitCommand = new class () extends AbstractCommand {
+    $quitCommand = new class() extends AbstractCommand {
         public string $id = 'QUIT';
     };
 
     try {
-        $connection->enqueue($quitCommand)->catch(fn () => null);
+        $connection->enqueue($quitCommand)->catch(fn() => null);
 
         $pendingPromise = $connection->enqueue(new PingCommand());
 

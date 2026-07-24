@@ -20,6 +20,7 @@ use Hibla\Redis\Command\SetCommand;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\RedisClientInterface;
+use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\Internals\Connection;
 use Hibla\Redis\Internals\Pipeline;
 use Hibla\Redis\Internals\RedisSubscriber;
@@ -264,7 +265,7 @@ final class RedisClient implements RedisClientInterface
      *
      * @template TResult
      *
-     * @param callable(Interfaces\RedisTransactionInterface): TResult $callback
+     * @param callable(RedisTransactionInterface): TResult $callback
      *
      * @return PromiseInterface<TResult>
      */
@@ -363,11 +364,7 @@ final class RedisClient implements RedisClientInterface
     }
 
     /**
-     * Executes multiple commands inside a MULTI/EXEC block in a single TCP write.
-     * Perfect for atomic "fire and forget" operations that do not require WATCH.
-     *
-     * @param callable(Interfaces\PipelineInterface): void $callback
-     * @return PromiseInterface<array<int, mixed>> Resolves to the array of EXEC results.
+     * @inheritDoc
      */
     public function atomic(callable $callback): PromiseInterface
     {
