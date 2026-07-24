@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 use Hibla\Promise\Exceptions\CancelledException;
-use Hibla\Redis\Command\BlpopCommand;
-use Hibla\Redis\Command\PingCommand;
+use Hibla\Redis\Command\Connection\PingCommand;
+use Hibla\Redis\Command\Lists\BlpopCommand;
 use Hibla\Redis\Exceptions\PoolException;
 use Hibla\Redis\Internals\Connection;
 use Hibla\Redis\Manager\PoolManager;

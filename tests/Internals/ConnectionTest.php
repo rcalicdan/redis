@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\AbstractCommand;
-use Hibla\Redis\Command\BlpopCommand;
-use Hibla\Redis\Command\GetCommand;
-use Hibla\Redis\Command\PingCommand;
-use Hibla\Redis\Command\SetCommand;
+use Hibla\Redis\Command\Connection\PingCommand;
+use Hibla\Redis\Command\Lists\BlpopCommand;
+use Hibla\Redis\Command\Strings\GetCommand;
+use Hibla\Redis\Command\Strings\SetCommand;
 use Hibla\Redis\Enums\ConnectionState;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Internals\Connection;
+use WeakReference;
 
 use function Hibla\await;
 use function Hibla\delay;
@@ -87,7 +88,7 @@ it('rejects pending promises when the connection is closed abruptly', function (
     $connection = await(Connection::create($config));
 
     try {
-        $connection->enqueue(new BlpopCommand(['empty_list', 0]))->catch(fn() => null);
+        $connection->enqueue(new BlpopCommand(['empty_list', 0]))->catch(fn () => null);
 
         $pendingPromise = $connection->enqueue(new GetCommand(['some_key']));
         $connection->close();
@@ -159,12 +160,12 @@ it('rejects pending promises when the server hangs up the connection', function 
     $config = getConfig();
     $connection = await(Connection::create($config));
 
-    $quitCommand = new class() extends AbstractCommand {
+    $quitCommand = new class () extends AbstractCommand {
         public string $id = 'QUIT';
     };
 
     try {
-        $connection->enqueue($quitCommand)->catch(fn() => null);
+        $connection->enqueue($quitCommand)->catch(fn () => null);
 
         $pendingPromise = $connection->enqueue(new PingCommand());
 

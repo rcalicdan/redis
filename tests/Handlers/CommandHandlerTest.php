@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\AbstractCommand;
-use Hibla\Redis\Command\PingCommand;
+use Hibla\Redis\Command\Connection\PingCommand;
 use Hibla\Redis\Enums\ConnectionState;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Internals\CommandRequest;
+use Mockery;
 
 afterEach(function () {
     Mockery::close();

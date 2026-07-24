@@ -101,6 +101,7 @@ interface RedisClientInterface extends RedisCommandsInterface
      * Perfect for atomic "fire and forget" operations that do not require WATCH.
      *
      * @param callable(PipelineInterface): void $callback
+     *
      * @return PromiseInterface<array<int, mixed>> Resolves to the array of EXEC results.
      */
     public function atomic(callable $callback): PromiseInterface;

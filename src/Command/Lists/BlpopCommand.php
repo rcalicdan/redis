@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hibla\Redis\Command;
+namespace Hibla\Redis\Command\Lists;
+
+use Hibla\Redis\Command\AbstractCommand;
 
 /**
  * Redis BLPOP command (Blocking Left Pop).

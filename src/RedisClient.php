@@ -7,16 +7,16 @@ namespace Hibla\Redis;
 use Hibla\Promise\Exceptions\CancelledException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
-use Hibla\Redis\Command\BlpopCommand;
-use Hibla\Redis\Command\DelCommand;
-use Hibla\Redis\Command\ExecCommand;
-use Hibla\Redis\Command\GetCommand;
+use Hibla\Redis\Command\Connection\PingCommand;
 use Hibla\Redis\Command\HgetallCommand;
-use Hibla\Redis\Command\MgetCommand;
-use Hibla\Redis\Command\MultiCommand;
-use Hibla\Redis\Command\PingCommand;
-use Hibla\Redis\Command\PublishCommand;
-use Hibla\Redis\Command\SetCommand;
+use Hibla\Redis\Command\Keys\DelCommand;
+use Hibla\Redis\Command\Lists\BlpopCommand;
+use Hibla\Redis\Command\PubSub\PublishCommand;
+use Hibla\Redis\Command\Strings\GetCommand;
+use Hibla\Redis\Command\Strings\MgetCommand;
+use Hibla\Redis\Command\Strings\SetCommand;
+use Hibla\Redis\Command\Transactions\ExecCommand;
+use Hibla\Redis\Command\Transactions\MultiCommand;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\RedisClientInterface;
@@ -298,7 +298,7 @@ final class RedisClient implements RedisClientInterface
 
                 $state->activeTx = new RedisTransaction($conn, $pool);
 
-                $state->innerWorkPromise = async(fn() => $callback($state->activeTx));
+                $state->innerWorkPromise = async(fn () => $callback($state->activeTx));
                 $result = await($state->innerWorkPromise);
 
                 if ($state->activeTx->isInMulti()) {
@@ -391,11 +391,12 @@ final class RedisClient implements RedisClientInterface
         $connection = null;
 
         $poolPromise = $pool->get();
-        $poolPromise->then(function (Internals\Connection $conn) use ($commands, $wrappedCommands, &$connection, $outerPromise, $pool): void {
+        $poolPromise->then(function (Connection $conn) use ($commands, $wrappedCommands, &$connection, $outerPromise, $pool): void {
             $connection = $conn;
 
             if ($outerPromise->isCancelled()) {
                 $pool->release($connection);
+
                 return;
             }
 
@@ -409,6 +410,7 @@ final class RedisClient implements RedisClientInterface
                         if (! $outerPromise->isSettled()) {
                             $outerPromise->reject($execResults);
                         }
+
                         return;
                     }
 
@@ -416,6 +418,7 @@ final class RedisClient implements RedisClientInterface
                         if (! $outerPromise->isSettled()) {
                             $outerPromise->resolve($execResults ?? []);
                         }
+
                         return;
                     }
 
@@ -572,7 +575,8 @@ final class RedisClient implements RedisClientInterface
 
                 $this->pool = null;
                 $this->closePromise = null;
-            });
+            })
+        ;
 
         return $this->closePromise;
     }

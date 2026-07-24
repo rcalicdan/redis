@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hibla\Redis\Command;
+namespace Hibla\Redis\Command\Keys;
+
+use Hibla\Redis\Command\AbstractCommand;
 
 /**
  * Redis DEL command.

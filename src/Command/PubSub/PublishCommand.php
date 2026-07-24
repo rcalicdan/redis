@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hibla\Redis\Command;
+namespace Hibla\Redis\Command\PubSub;
+
+use Hibla\Redis\Command\AbstractCommand;
 
 /**
  * Redis PUBLISH command.

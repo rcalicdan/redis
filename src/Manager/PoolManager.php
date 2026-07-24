@@ -8,7 +8,7 @@ use Hibla\EventLoop\Loop;
 use Hibla\Promise\Exceptions\TimeoutException;
 use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
-use Hibla\Redis\Command\PingCommand;
+use Hibla\Redis\Command\Connection\PingCommand;
 use Hibla\Redis\Enums\ConnectionState;
 use Hibla\Redis\Exceptions\PoolException;
 use Hibla\Redis\Internals\Connection;

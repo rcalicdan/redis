@@ -42,9 +42,11 @@ describe('RedisClient - Atomic Cancellation', function (): void {
             $atomicPromise->cancel();
 
             expect(fn () => await($atomicPromise))->toThrow(CancelledException::class)
-                ->and($client->stats['waiting_requests'])->toBe(0);
+                ->and($client->stats['waiting_requests'])->toBe(0)
+            ;
 
             $hogPromise->cancel();
+
             try {
                 await($hogPromise);
             } catch (Throwable) {
@@ -63,7 +65,7 @@ describe('RedisClient - Atomic Cancellation', function (): void {
         $client = new RedisClient(getConfig(), maxConnections: 1);
 
         try {
-            await($client->ping()); 
+            await($client->ping());
 
             $atomicPromise = $client->atomic(function (PipelineInterface $pipe) {
                 for ($i = 0; $i < 5000; $i++) {
@@ -85,7 +87,8 @@ describe('RedisClient - Atomic Cancellation', function (): void {
             }
 
             expect($client->stats['active_connections'])->toBe(0)
-                ->and($client->stats['pooled_connections'])->toBe(1);
+                ->and($client->stats['pooled_connections'])->toBe(1)
+            ;
 
             expect(await($client->ping('Fully healthy')))->toBe('Fully healthy');
 
@@ -120,7 +123,8 @@ describe('RedisClient - Atomic Cancellation', function (): void {
             }
 
             expect($client->stats['active_connections'])->toBe(0)
-                ->and($client->stats['pooled_connections'])->toBe(1);
+                ->and($client->stats['pooled_connections'])->toBe(1)
+            ;
 
             expect(await($client->ping('I am alive')))->toBe('I am alive');
 
@@ -134,7 +138,7 @@ describe('RedisClient - Atomic Cancellation', function (): void {
         $key = 'atomic_uninterruptible_key_' . uniqid();
 
         try {
-            await($client->ping()); 
+            await($client->ping());
 
             $atomicPromise = $client->atomic(function (PipelineInterface $pipe) use ($key) {
                 $pipe->set($key, 'done');
@@ -150,7 +154,7 @@ describe('RedisClient - Atomic Cancellation', function (): void {
                 // Expected
             }
 
-            await(delay(0.05)); 
+            await(delay(0.05));
 
             expect(await($client->get($key)))->toBe('done');
 

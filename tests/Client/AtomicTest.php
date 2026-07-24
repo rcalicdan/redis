@@ -31,7 +31,8 @@ describe('RedisClient - Atomic Operations', function (): void {
                 ->and($results[1])->toBe('OK')
                 ->and($results[2])->toBe('val1')
                 ->and($results[3])->toBe(['val1', null])
-                ->and($results[4])->toBe('atomic_pong');
+                ->and($results[4])->toBe('atomic_pong')
+            ;
         } finally {
             $client->close();
         }
@@ -44,7 +45,7 @@ describe('RedisClient - Atomic Operations', function (): void {
             await($client->del('atomic_hash'));
 
             $results = await($client->atomic(function (PipelineInterface $pipe) {
-                $hsetCommand = new class(['atomic_hash', 'f1', 'v1', 'f2', 'v2']) extends AbstractCommand {
+                $hsetCommand = new class (['atomic_hash', 'f1', 'v1', 'f2', 'v2']) extends AbstractCommand {
                     public string $id = 'HSET';
                 };
 
@@ -54,7 +55,8 @@ describe('RedisClient - Atomic Operations', function (): void {
 
             expect($results)->toHaveCount(2)
                 ->and($results[0])->toBe(2)
-                ->and($results[1])->toBe(['f1' => 'v1', 'f2' => 'v2']);
+                ->and($results[1])->toBe(['f1' => 'v1', 'f2' => 'v2'])
+            ;
         } finally {
             $client->close();
         }
@@ -69,7 +71,8 @@ describe('RedisClient - Atomic Operations', function (): void {
             }));
 
             expect($results)->toBeArray()->toBeEmpty()
-                ->and($client->stats['active_connections'])->toBe(0);
+                ->and($client->stats['active_connections'])->toBe(0)
+            ;
         } finally {
             $client->close();
         }
@@ -91,7 +94,8 @@ describe('RedisClient - Atomic Operations', function (): void {
                 ->and($results[0])->toBe('before_error')
                 ->and($results[1])->toBeInstanceOf(RedisException::class)
                 ->and($results[1]->getMessage())->toContain('WRONGTYPE')
-                ->and($results[2])->toBe('after_error');
+                ->and($results[2])->toBe('after_error')
+            ;
         } finally {
             $client->close();
         }
@@ -112,7 +116,8 @@ describe('RedisClient - Atomic Operations', function (): void {
 
             expect($client->stats['active_connections'])->toBe(0)
                 ->and(await($client->get('atomic_c1')))->toBe('1')
-                ->and(await($client->get('atomic_c2')))->toBe('2');
+                ->and(await($client->get('atomic_c2')))->toBe('2')
+            ;
         } finally {
             $client->close();
         }
@@ -125,7 +130,7 @@ describe('RedisClient - Atomic Operations', function (): void {
             $promise = $client->atomic(function (PipelineInterface $pipe) {
                 $pipe->ping('alive');
 
-                $brokenCommand = new class(['only_one_arg']) extends AbstractCommand {
+                $brokenCommand = new class (['only_one_arg']) extends AbstractCommand {
                     public string $id = 'SET';
                 };
                 $pipe->executeCommand($brokenCommand);
@@ -133,8 +138,9 @@ describe('RedisClient - Atomic Operations', function (): void {
                 $pipe->ping('alive_again');
             });
 
-            expect(fn() => await($promise))
-                ->toThrow(RedisException::class, "ERR wrong number of arguments for 'set' command");
+            expect(fn () => await($promise))
+                ->toThrow(RedisException::class, "ERR wrong number of arguments for 'set' command")
+            ;
 
             expect(await($client->ping('healthy')))->toBe('healthy');
         } finally {
@@ -153,8 +159,9 @@ describe('RedisClient - Atomic Operations', function (): void {
                 $leakedPipe = $pipe;
             }));
 
-            expect(fn() => $leakedPipe->set('late_key', 'late_val'))
-                ->toThrow(LogicException::class, 'Cannot add commands to a pipeline that has already been executed.');
+            expect(fn () => $leakedPipe->set('late_key', 'late_val'))
+                ->toThrow(LogicException::class, 'Cannot add commands to a pipeline that has already been executed.')
+            ;
         } finally {
             $client->close();
         }
@@ -171,7 +178,8 @@ describe('RedisClient - Atomic Operations', function (): void {
             }));
 
             expect($results)->toHaveCount(1)
-                ->and($results[0])->toBeNull();
+                ->and($results[0])->toBeNull()
+            ;
         } finally {
             $client->close();
         }
@@ -191,7 +199,8 @@ describe('RedisClient - Atomic Operations', function (): void {
 
             expect($results)->toHaveCount($count)
                 ->and($results[0])->toBe('OK')
-                ->and($results[$count - 1])->toBe('OK');
+                ->and($results[$count - 1])->toBe('OK')
+            ;
 
             $keys = [];
             for ($i = 0; $i < $count; $i++) {

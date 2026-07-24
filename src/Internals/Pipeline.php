@@ -4,18 +4,21 @@ declare(strict_types=1);
 
 namespace Hibla\Redis\Internals;
 
-use Hibla\Redis\Command\BlpopCommand;
-use Hibla\Redis\Command\DelCommand;
-use Hibla\Redis\Command\GetCommand;
+use Hibla\Redis\Command\Connection\PingCommand;
 use Hibla\Redis\Command\HgetallCommand;
-use Hibla\Redis\Command\MgetCommand;
-use Hibla\Redis\Command\PingCommand;
-use Hibla\Redis\Command\PublishCommand;
-use Hibla\Redis\Command\SetCommand;
+use Hibla\Redis\Command\Keys\DelCommand;
+use Hibla\Redis\Command\Lists\BlpopCommand;
+use Hibla\Redis\Command\PubSub\PublishCommand;
+use Hibla\Redis\Command\Strings\GetCommand;
+use Hibla\Redis\Command\Strings\MgetCommand;
+use Hibla\Redis\Command\Strings\SetCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\PipelineInterface;
 use LogicException;
 
+/**
+ * @internal Created via RedisClient::pipeline(). Do not instantiate directly.
+ */
 final class Pipeline implements PipelineInterface
 {
     /**
