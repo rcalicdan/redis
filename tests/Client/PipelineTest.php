@@ -21,7 +21,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
             }));
 
             expect($results)->toBeArray()->toBeEmpty()
-                ->and($client->stats['total_connections'])->toBe(0);
+                ->and($client->stats['total_connections'])->toBe(0)
+            ;
         } finally {
             $client->close();
         }
@@ -41,7 +42,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                      ->incr('p_num')
                      ->decr('p_num')
                      ->incrby('p_num', 5)
-                     ->incrbyfloat('p_float', 2.5);
+                     ->incrbyfloat('p_float', 2.5)
+                ;
             }));
 
             expect($results)->toHaveCount(8)
@@ -52,7 +54,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                 ->and($results[4])->toBe(1)
                 ->and($results[5])->toBe(0)
                 ->and($results[6])->toBe(5)
-                ->and($results[7])->toBe(2.5);
+                ->and($results[7])->toBe(2.5)
+            ;
         } finally {
             $client->close();
         }
@@ -72,7 +75,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                      ->ttl('p_k1')
                      ->type('p_k1')
                      ->del('p_k2')
-                     ->unlink('p_k3');
+                     ->unlink('p_k3')
+                ;
             }));
 
             expect($results)->toHaveCount(6)
@@ -81,7 +85,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                 ->and($results[2])->toBeGreaterThan(0)->toBeLessThanOrEqual(60)
                 ->and($results[3])->toBe('string')
                 ->and($results[4])->toBe(1)
-                ->and($results[5])->toBe(1);
+                ->and($results[5])->toBe(1)
+            ;
         } finally {
             $client->close();
         }
@@ -99,7 +104,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                      ->hmget('p_hash', 'f1', 'missing')
                      ->hexists('p_hash', 'f2')
                      ->hgetall('p_hash')
-                     ->hdel('p_hash', 'f1');
+                     ->hdel('p_hash', 'f1')
+                ;
             }));
 
             expect($results)->toHaveCount(6)
@@ -108,7 +114,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                 ->and($results[2])->toBe(['v1', null])
                 ->and($results[3])->toBe(1)
                 ->and($results[4])->toBe(['f1' => 'v1', 'f2' => 'v2'])
-                ->and($results[5])->toBe(1);
+                ->and($results[5])->toBe(1)
+            ;
         } finally {
             $client->close();
         }
@@ -128,7 +135,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                      ->rpop('p_list')
                      // Setup for BLPOP
                      ->lpush('p_blpop_list', 'instant_pop')
-                     ->blpop('p_blpop_list', 1);
+                     ->blpop('p_blpop_list', 1)
+                ;
             }));
 
             expect($results)->toHaveCount(7)
@@ -138,7 +146,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                 ->and($results[3])->toBe('job1') // LPOP
                 ->and($results[4])->toBe('job3') // RPOP
                 ->and($results[5])->toBe(1) // LPUSH for BLPOP
-                ->and($results[6])->toBe(['p_blpop_list', 'instant_pop']); // BLPOP
+                ->and($results[6])->toBe(['p_blpop_list', 'instant_pop']) // BLPOP
+            ;
         } finally {
             $client->close();
         }
@@ -154,7 +163,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                 $pipe->sadd('p_set', 'm1', 'm2', 'm3')
                      ->sismember('p_set', 'm1')
                      ->smembers('p_set')
-                     ->srem('p_set', 'm3');
+                     ->srem('p_set', 'm3')
+                ;
             }));
 
             $members = $results[2];
@@ -164,7 +174,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                 ->and($results[0])->toBe(3)
                 ->and($results[1])->toBe(1)
                 ->and($members)->toBe(['m1', 'm2', 'm3'])
-                ->and($results[3])->toBe(1);
+                ->and($results[3])->toBe(1)
+            ;
         } finally {
             $client->close();
         }
@@ -180,14 +191,16 @@ describe('RedisClient - Explicit Pipelining', function (): void {
                 $pipe->zadd('p_zset', 10, 'p1', 20, 'p2')
                      ->zscore('p_zset', 'p1')
                      ->zrange('p_zset', 0, -1)
-                     ->zrem('p_zset', 'p2');
+                     ->zrem('p_zset', 'p2')
+                ;
             }));
 
             expect($results)->toHaveCount(4)
                 ->and($results[0])->toBe(2)
                 ->and($results[1])->toBe('10')
                 ->and($results[2])->toBe(['p1', 'p2'])
-                ->and($results[3])->toBe(1);
+                ->and($results[3])->toBe(1)
+            ;
         } finally {
             $client->close();
         }
@@ -204,13 +217,15 @@ describe('RedisClient - Explicit Pipelining', function (): void {
             $results = await($client->pipeline(function (PipelineInterface $pipe) use ($customCommand) {
                 $pipe->ping('alive')
                      ->publish('p_chan', 'msg')
-                     ->executeCommand($customCommand);
+                     ->executeCommand($customCommand)
+                ;
             }));
 
             expect($results)->toHaveCount(3)
                 ->and($results[0])->toBe('alive')
                 ->and($results[1])->toBe(0) // No subscribers in this isolated test
-                ->and($results[2])->toBe('custom_ping');
+                ->and($results[2])->toBe('custom_ping')
+            ;
         } finally {
             $client->close();
         }
@@ -229,7 +244,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
             });
 
             expect(fn () => await($promise))
-                ->toThrow(RedisException::class, 'WRONGTYPE Operation against a key holding the wrong kind of value');
+                ->toThrow(RedisException::class, 'WRONGTYPE Operation against a key holding the wrong kind of value')
+            ;
 
         } finally {
             $client->close();
@@ -251,7 +267,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
             expect($results)->toBe(['legitimate']);
 
             expect(fn () => $leakedPipe->set('late_key', 'late_val'))
-                ->toThrow(LogicException::class, 'Cannot add commands to a pipeline that has already been executed.');
+                ->toThrow(LogicException::class, 'Cannot add commands to a pipeline that has already been executed.')
+            ;
 
         } finally {
             $client->close();
@@ -270,7 +287,8 @@ describe('RedisClient - Explicit Pipelining', function (): void {
 
             expect($insertResults)->toHaveCount(100)
                 ->and($insertResults[0])->toBe('OK')
-                ->and($insertResults[99])->toBe('OK');
+                ->and($insertResults[99])->toBe('OK')
+            ;
 
             $keysToDelete = [];
             for ($i = 0; $i < 100; $i++) {
