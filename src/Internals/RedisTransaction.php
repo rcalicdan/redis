@@ -8,7 +8,7 @@ use Hibla\Promise\Interfaces\PromiseInterface;
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\AbstractCommand;
 use Hibla\Redis\Command\Connection\PingCommand;
-use Hibla\Redis\Command\HgetallCommand;
+use Hibla\Redis\Command\Hashes\HgetallCommand;
 use Hibla\Redis\Command\Keys\DelCommand;
 use Hibla\Redis\Command\Lists\BlpopCommand;
 use Hibla\Redis\Command\Strings\GetCommand;

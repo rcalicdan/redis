@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hibla\Redis\Internals;
 
 use Hibla\Redis\Command\Connection\PingCommand;
-use Hibla\Redis\Command\HgetallCommand;
+use Hibla\Redis\Command\Hashes\HgetallCommand;
 use Hibla\Redis\Command\Keys\DelCommand;
 use Hibla\Redis\Command\Lists\BlpopCommand;
 use Hibla\Redis\Command\PubSub\PublishCommand;
