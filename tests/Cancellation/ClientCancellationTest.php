@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Hibla\EventLoop\Loop;
 use Hibla\Promise\Exceptions\CancelledException;
+use Hibla\Redis\Command\PubSub\SubscribeCommand;
+use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\RedisClient;
 
 use function Hibla\await;
@@ -109,6 +111,22 @@ describe('RedisClient - Query & Command Cancellation', function (): void {
 
             $getResult = await($client->get('recovery_key'));
             expect($getResult)->toBe('recovery_val');
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('prevents pool corruption by rejecting raw pub/sub commands on the general client', function (): void {
+        $client = new RedisClient(getConfig());
+
+        try {
+            $promise = $client->executeCommand(new SubscribeCommand(['poison_channel']));
+
+            expect(fn () => await($promise))->toThrow(
+                RedisException::class,
+                'Pub/Sub commands (SUBSCRIBE) cannot be executed on the general connection pool'
+            );
+
         } finally {
             $client->close();
         }

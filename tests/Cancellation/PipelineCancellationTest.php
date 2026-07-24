@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use Hibla\Promise\Exceptions\CancelledException;
+use Hibla\Redis\Command\PubSub\SubscribeCommand;
+use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Interfaces\PipelineInterface;
 use Hibla\Redis\RedisClient;
 
@@ -89,7 +91,6 @@ describe('Pipeline Cancellation & Resource Safety', function (): void {
             ;
 
             expect(await($client->ping('I am alive')))->toBe('I am alive');
-
         } finally {
             $client->close();
         }
@@ -130,7 +131,24 @@ describe('Pipeline Cancellation & Resource Safety', function (): void {
             ;
 
             expect(await($client->ping('Fully healthy')))->toBe('Fully healthy');
+        } finally {
+            $client->close();
+        }
+    });
 
+    it('prevents pool corruption by rejecting pipelines containing raw pub/sub commands', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            $pipelinePromise = $client->pipeline(function (PipelineInterface $pipe) {
+                $pipe->ping('ok');
+                $pipe->executeCommand(new SubscribeCommand(['pipe_poison_channel']));
+            });
+
+            expect(fn () => await($pipelinePromise))->toThrow(
+                RedisException::class,
+                'Pub/Sub commands (SUBSCRIBE) cannot be executed on the general connection pool'
+            );
         } finally {
             $client->close();
         }

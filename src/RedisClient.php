@@ -13,6 +13,7 @@ use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Interfaces\CommandInterface;
 use Hibla\Redis\Interfaces\RedisClientInterface;
 use Hibla\Redis\Interfaces\RedisTransactionInterface;
+use Hibla\Redis\Internals\CommandValidator;
 use Hibla\Redis\Internals\Connection;
 use Hibla\Redis\Internals\Pipeline;
 use Hibla\Redis\Internals\RedisSubscriber;
@@ -99,6 +100,10 @@ final class RedisClient implements RedisClientInterface
             return Promise::rejected(new ConnectionException('Client is closed'));
         }
 
+        if (($error = CommandValidator::checkValidForPool($command)) !== null) {
+            return Promise::rejected($error);
+        }
+
         $pool = $this->pool;
         $connection = null;
 
@@ -177,6 +182,10 @@ final class RedisClient implements RedisClientInterface
             return Promise::resolved([]);
         }
 
+        if (($error = CommandValidator::checkBatchValidForPool($commands)) !== null) {
+            return Promise::rejected($error);
+        }
+
         $pool = $this->pool;
         $connection = null;
 
@@ -252,6 +261,10 @@ final class RedisClient implements RedisClientInterface
 
         if ($commands === []) {
             return Promise::resolved([]);
+        }
+
+        if (($error = CommandValidator::checkBatchValidForPool($commands)) !== null) {
+            return Promise::rejected($error);
         }
 
         $wrappedCommands = [new MultiCommand(), ...$commands, new ExecCommand()];

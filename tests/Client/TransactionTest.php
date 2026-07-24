@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\AbstractCommand;
+use Hibla\Redis\Command\PubSub\SubscribeCommand;
+use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Exceptions\TransactionException;
 use Hibla\Redis\Interfaces\RedisTransactionInterface;
 use Hibla\Redis\RedisClient;
@@ -543,6 +545,23 @@ describe('RedisClient - Transactions', function (): void {
                 }));
             })->toThrow(TransactionException::class, 'DISCARD without MULTI');
 
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('rejects raw pub/sub commands executed inside a transaction', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            expect(function () use ($client) {
+                await($client->transaction(function (RedisTransactionInterface $tx) {
+                    await($tx->executeCommand(new SubscribeCommand(['tx_chan'])));
+                }));
+            })->toThrow(
+                RedisException::class,
+                'Pub/Sub commands (SUBSCRIBE) cannot be executed on the general connection pool'
+            );
         } finally {
             $client->close();
         }

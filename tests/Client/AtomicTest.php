@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Hibla\Promise\Promise;
 use Hibla\Redis\Command\AbstractCommand;
+use Hibla\Redis\Command\PubSub\SubscribeCommand;
 use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Interfaces\PipelineInterface;
 use Hibla\Redis\RedisClient;
@@ -209,6 +210,24 @@ describe('RedisClient - Atomic Operations', function (): void {
             $deleted = await($client->del(...$keys));
 
             expect($deleted)->toBe($count);
+        } finally {
+            $client->close();
+        }
+    });
+
+    it('rejects atomic operations containing raw pub/sub commands', function () {
+        $client = new RedisClient(getConfig());
+
+        try {
+            $promise = $client->atomic(function (PipelineInterface $pipe) {
+                $pipe->ping('alive');
+                $pipe->executeCommand(new SubscribeCommand(['atomic_chan']));
+            });
+
+            expect(fn () => await($promise))->toThrow(
+                RedisException::class,
+                'Pub/Sub commands (SUBSCRIBE) cannot be executed on the general connection pool'
+            );
         } finally {
             $client->close();
         }

@@ -55,7 +55,6 @@ describe('RedisClient - Atomic Cancellation', function (): void {
 
             await(delay(0.05));
             expect(await($client->get($key)))->toBeNull();
-
         } finally {
             $client->close();
         }
@@ -91,7 +90,6 @@ describe('RedisClient - Atomic Cancellation', function (): void {
             ;
 
             expect(await($client->ping('Fully healthy')))->toBe('Fully healthy');
-
         } finally {
             $client->close();
         }
@@ -127,7 +125,6 @@ describe('RedisClient - Atomic Cancellation', function (): void {
             ;
 
             expect(await($client->ping('I am alive')))->toBe('I am alive');
-
         } finally {
             $client->close();
         }
@@ -141,12 +138,22 @@ describe('RedisClient - Atomic Cancellation', function (): void {
             await($client->ping());
 
             $atomicPromise = $client->atomic(function (PipelineInterface $pipe) use ($key) {
+                for ($i = 0; $i < 1000; $i++) {
+                    $pipe->ping('delay');
+                }
                 $pipe->set($key, 'done');
             });
 
-            Loop::nextTick(function () use ($atomicPromise) {
-                $atomicPromise->cancel();
-            });
+            for ($attempt = 0; $attempt < 50; $attempt++) {
+                if ($client->stats['active_connections'] === 1) {
+                    break;
+                }
+                await(delay(0.01));
+            }
+
+            await(delay(0.005));
+
+            $atomicPromise->cancel();
 
             try {
                 await($atomicPromise);
@@ -157,7 +164,6 @@ describe('RedisClient - Atomic Cancellation', function (): void {
             await(delay(0.05));
 
             expect(await($client->get($key)))->toBe('done');
-
         } finally {
             $client->close();
         }

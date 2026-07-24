@@ -60,6 +60,10 @@ final class RedisTransaction implements RedisTransactionInterface
     {
         $this->ensureActiveAndNotFailed();
 
+        if (($error = CommandValidator::checkValidForPool($command)) !== null) {
+            return Promise::propagateCancellation($this->trackErrorState(Promise::rejected($error)));
+        }
+
         if ($this->inMulti) {
             $this->queuedCommands[] = $command;
 
