@@ -11,15 +11,17 @@ use Hibla\Redis\Command\Strings\IncrbyCommand;
 use Hibla\Redis\Command\Strings\IncrbyfloatCommand;
 use Hibla\Redis\Command\Strings\IncrCommand;
 use Hibla\Redis\Command\Strings\MgetCommand;
-use Hibla\Redis\Command\Strings\SetexCommand;
 use Hibla\Redis\Command\Strings\SetCommand;
+use Hibla\Redis\Command\Strings\SetexCommand;
 use Hibla\Redis\Interfaces\CommandInterface;
 
 trait StringsCommandsTrait
 {
     /**
      * @template TReturn
+     *
      * @param CommandInterface<TReturn> $command
+     *
      * @return PromiseInterface<TReturn>
      */
     abstract public function executeCommand(CommandInterface $command): PromiseInterface;

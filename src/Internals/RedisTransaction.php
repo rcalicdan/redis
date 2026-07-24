@@ -266,7 +266,7 @@ final class RedisTransaction implements RedisTransactionInterface
 
         if ($this->isWatched) {
             $this->forceCancelCurrentQuery();
-            $this->isWatched = false; 
+            $this->isWatched = false;
 
             $promise = $this->connection->enqueue(new UnwatchCommand());
 
@@ -299,7 +299,7 @@ final class RedisTransaction implements RedisTransactionInterface
             $this->forceCancelCurrentQuery();
             $this->connection->enqueue(new DiscardCommand())->finally(function (): void {
                 $this->pool->release($this->connection);
-            })->catch(static fn () => null); 
+            })->catch(static fn () => null);
 
             return;
         }
@@ -308,7 +308,7 @@ final class RedisTransaction implements RedisTransactionInterface
             $this->forceCancelCurrentQuery();
             $this->connection->enqueue(new UnwatchCommand())->finally(function (): void {
                 $this->pool->release($this->connection);
-            })->catch(static fn () => null); 
+            })->catch(static fn () => null);
 
             return;
         }

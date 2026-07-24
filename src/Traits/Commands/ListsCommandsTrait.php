@@ -17,7 +17,9 @@ trait ListsCommandsTrait
 {
     /**
      * @template TReturn
+     *
      * @param CommandInterface<TReturn> $command
+     *
      * @return PromiseInterface<TReturn>
      */
     abstract public function executeCommand(CommandInterface $command): PromiseInterface;
@@ -47,9 +49,11 @@ trait ListsCommandsTrait
      *
      * @return PromiseInterface<string|array<int, string>|null>
      */
-    public function lpop(string $key, int $count = 1): PromiseInterface
+    public function lpop(string $key, ?int $count = null): PromiseInterface
     {
-        return $this->executeCommand(new LpopCommand([$key, $count]));
+        $args = $count !== null ? [$key, $count] : [$key];
+
+        return $this->executeCommand(new LpopCommand($args));
     }
 
     /**
@@ -57,9 +61,11 @@ trait ListsCommandsTrait
      *
      * @return PromiseInterface<string|array<int, string>|null>
      */
-    public function rpop(string $key, int $count = 1): PromiseInterface
+    public function rpop(string $key, ?int $count = null): PromiseInterface
     {
-        return $this->executeCommand(new RpopCommand([$key, $count]));
+        $args = $count !== null ? [$key, $count] : [$key];
+
+        return $this->executeCommand(new RpopCommand($args));
     }
 
     /**
@@ -76,6 +82,7 @@ trait ListsCommandsTrait
      * {@inheritDoc}
      *
      * @param string|array<string> $keys
+     *
      * @return PromiseInterface<array<int, string>|null>
      */
     public function blpop(string|array $keys, float|int $timeout = 0): PromiseInterface

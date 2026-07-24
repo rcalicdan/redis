@@ -401,7 +401,7 @@ final class RedisClient implements RedisClientInterface
 
                 $state->activeTx = new RedisTransaction($conn, $pool);
 
-                $state->innerWorkPromise = async(fn() => $callback($state->activeTx));
+                $state->innerWorkPromise = async(fn () => $callback($state->activeTx));
                 $result = await($state->innerWorkPromise);
 
                 if ($state->activeTx->isInMulti()) {
@@ -501,7 +501,8 @@ final class RedisClient implements RedisClientInterface
 
                 $this->pool = null;
                 $this->closePromise = null;
-            });
+            })
+        ;
 
         return $this->closePromise;
     }

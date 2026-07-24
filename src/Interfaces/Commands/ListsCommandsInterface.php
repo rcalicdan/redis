@@ -32,21 +32,21 @@ interface ListsCommandsInterface
      * Removes and returns first element(s) of list stored at key.
      *
      * @param string $key List key.
-     * @param int $count Number of elements to pop.
+     * @param int|null $count Number of elements to pop (default 1).
      *
      * @return PromiseInterface<string|array<int, string>|null>
      */
-    public function lpop(string $key, int $count = 1): PromiseInterface;
+    public function lpop(string $key, ?int $count = null): PromiseInterface;
 
     /**
      * Removes and returns last element(s) of list stored at key.
      *
      * @param string $key List key.
-     * @param int $count Number of elements to pop.
+     * @param int|null $count Number of elements to pop (default 1).
      *
      * @return PromiseInterface<string|array<int, string>|null>
      */
-    public function rpop(string $key, int $count = 1): PromiseInterface;
+    public function rpop(string $key, ?int $count = null): PromiseInterface;
 
     /**
      * Returns length of list stored at key.

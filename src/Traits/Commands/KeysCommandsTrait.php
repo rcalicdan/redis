@@ -17,7 +17,9 @@ trait KeysCommandsTrait
 {
     /**
      * @template TReturn
+     *
      * @param CommandInterface<TReturn> $command
+     *
      * @return PromiseInterface<TReturn>
      */
     abstract public function executeCommand(CommandInterface $command): PromiseInterface;

@@ -72,7 +72,8 @@ describe('RedisClient - Core Connection & Lifecycle', function (): void {
 
             expect($health['total_checked'])->toBe(1)
                 ->and($health['healthy'])->toBe(1)
-                ->and($health['unhealthy'])->toBe(0);
+                ->and($health['unhealthy'])->toBe(0)
+            ;
         } finally {
             $client->close();
         }
@@ -109,7 +110,8 @@ describe('RedisClient - Key Management', function (): void {
             await($client->set('ex_2', 'v2'));
 
             expect(await($client->exists('ex_1')))->toBe(1)
-                ->and(await($client->exists('ex_1', 'ex_2', 'missing')))->toBe(2);
+                ->and(await($client->exists('ex_1', 'ex_2', 'missing')))->toBe(2)
+            ;
         } finally {
             $client->close();
         }
@@ -121,7 +123,7 @@ describe('RedisClient - Key Management', function (): void {
         try {
             await($client->set('ttl_k', 'v'));
 
-            expect(await($client->ttl('ttl_k')))->toBe(-1); 
+            expect(await($client->ttl('ttl_k')))->toBe(-1);
 
             $expireResult = await($client->expire('ttl_k', 60));
             expect($expireResult)->toBe(1);
@@ -142,7 +144,8 @@ describe('RedisClient - Key Management', function (): void {
 
             expect(await($client->type('str_k')))->toBe('string')
                 ->and(await($client->type('hash_k')))->toBe('hash')
-                ->and(await($client->type('missing_k')))->toBe('none');
+                ->and(await($client->type('missing_k')))->toBe('none')
+            ;
         } finally {
             $client->close();
         }
@@ -189,7 +192,8 @@ describe('RedisClient - Strings & Numerics', function (): void {
             expect(await($client->incr('num')))->toBe(1)
                 ->and(await($client->incrby('num', 5)))->toBe(6)
                 ->and(await($client->decr('num')))->toBe(5)
-                ->and(await($client->incrbyfloat('float_num', 2.5)))->toBe(2.5);
+                ->and(await($client->incrbyfloat('float_num', 2.5)))->toBe(2.5)
+            ;
         } finally {
             $client->close();
         }
@@ -201,7 +205,8 @@ describe('RedisClient - Strings & Numerics', function (): void {
         try {
             expect(await($client->setex('setex_key', 30, 'setex_val')))->toBe('OK')
                 ->and(await($client->get('setex_key')))->toBe('setex_val')
-                ->and(await($client->ttl('setex_key')))->toBeGreaterThan(0);
+                ->and(await($client->ttl('setex_key')))->toBeGreaterThan(0)
+            ;
         } finally {
             $client->close();
         }
@@ -219,7 +224,8 @@ describe('RedisClient - Hashes', function (): void {
 
             expect(await($client->hget('user:100', 'name')))->toBe('Alice')
                 ->and(await($client->hexists('user:100', 'role')))->toBe(1)
-                ->and(await($client->hexists('user:100', 'missing')))->toBe(0);
+                ->and(await($client->hexists('user:100', 'missing')))->toBe(0)
+            ;
 
             expect(await($client->hmget('user:100', 'name', 'missing', 'role')))->toBe(['Alice', null, 'admin']);
 
@@ -230,7 +236,8 @@ describe('RedisClient - Hashes', function (): void {
             ]);
 
             expect(await($client->hdel('user:100', 'role')))->toBe(1)
-                ->and(await($client->hget('user:100', 'role')))->toBeNull();
+                ->and(await($client->hget('user:100', 'role')))->toBeNull()
+            ;
         } finally {
             $client->close();
         }
@@ -254,8 +261,8 @@ describe('RedisClient - Lists', function (): void {
         $client = createIsolatedCleanClient();
 
         try {
-            expect(await($client->lpush('queue', 'job2', 'job1')))->toBe(2); 
-            expect(await($client->rpush('queue', 'job3')))->toBe(3);    
+            expect(await($client->lpush('queue', 'job2', 'job1')))->toBe(2);
+            expect(await($client->rpush('queue', 'job3')))->toBe(3);
 
             expect(await($client->llen('queue')))->toBe(3);
 
@@ -282,7 +289,8 @@ describe('RedisClient - Lists', function (): void {
             $elapsed = microtime(true) - $start;
 
             expect($result)->toBe(['my_list', 'popped_value'])
-                ->and($elapsed)->toBeGreaterThanOrEqual(0.09);
+                ->and($elapsed)->toBeGreaterThanOrEqual(0.09)
+            ;
         } finally {
             $client->close();
         }
@@ -298,14 +306,16 @@ describe('RedisClient - Sets', function (): void {
             expect(await($client->sadd('tags', 'php', 'async', 'redis', 'php')))->toBe(3);
 
             expect(await($client->sismember('tags', 'php')))->toBe(1)
-                ->and(await($client->sismember('tags', 'python')))->toBe(0);
+                ->and(await($client->sismember('tags', 'python')))->toBe(0)
+            ;
 
             $members = await($client->smembers('tags'));
             sort($members);
             expect($members)->toBe(['async', 'php', 'redis']);
 
             expect(await($client->srem('tags', 'async')))->toBe(1)
-                ->and(await($client->sismember('tags', 'async')))->toBe(0);
+                ->and(await($client->sismember('tags', 'async')))->toBe(0)
+            ;
         } finally {
             $client->close();
         }
@@ -321,12 +331,14 @@ describe('RedisClient - Sorted Sets (ZSets)', function (): void {
             expect(await($client->zadd('leaderboard', 100, 'player1', 250, 'player2')))->toBe(2);
 
             expect(await($client->zscore('leaderboard', 'player1')))->toBe('100')
-                ->and(await($client->zscore('leaderboard', 'missing')))->toBeNull();
+                ->and(await($client->zscore('leaderboard', 'missing')))->toBeNull()
+            ;
 
             expect(await($client->zrange('leaderboard', 0, -1)))->toBe(['player1', 'player2']);
 
             expect(await($client->zrem('leaderboard', 'player1')))->toBe(1)
-                ->and(await($client->zrange('leaderboard', 0, -1)))->toBe(['player2']);
+                ->and(await($client->zrange('leaderboard', 0, -1)))->toBe(['player2'])
+            ;
         } finally {
             $client->close();
         }
@@ -351,7 +363,8 @@ describe('RedisClient - Concurrency & Pipelines', function (): void {
             $results = await(Promise::all($promises));
 
             expect($results)->toBe(['A', 'B', 'C', 'D', 'E'])
-                ->and($client->stats['total_connections'])->toBeLessThanOrEqual(3);
+                ->and($client->stats['total_connections'])->toBeLessThanOrEqual(3)
+            ;
         } finally {
             $client->close();
         }
@@ -370,7 +383,8 @@ describe('RedisClient - Graceful Shutdown', function (): void {
         $results = await(Promise::all([$p1, $shutdown]));
 
         expect($results[0])->toBe('First')
-            ->and($client->stats)->toBeEmpty();
+            ->and($client->stats)->toBeEmpty()
+        ;
     });
 
     it('rejects commands submitted while closeAsync is pending', function () {
@@ -379,7 +393,8 @@ describe('RedisClient - Graceful Shutdown', function (): void {
         $client->closeAsync();
 
         expect(fn () => await($client->ping()))
-            ->toThrow(PoolException::class, 'Pool is shutting down');
+            ->toThrow(PoolException::class, 'Pool is shutting down')
+        ;
     });
 
     it('rejects commands submitted after close is called', function () {
