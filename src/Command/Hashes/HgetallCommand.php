@@ -24,8 +24,6 @@ final class HgetallCommand extends AbstractCommand
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @return array<string, string>
      */
     public function parseResponse(mixed $data): mixed

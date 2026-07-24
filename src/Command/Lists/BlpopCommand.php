@@ -22,16 +22,10 @@ use Hibla\Redis\Command\AbstractCommand;
  */
 final class BlpopCommand extends AbstractCommand
 {
-    /**
-     * {@inheritDoc}
-     */
     public string $id {
         get => 'BLPOP';
     }
 
-    /**
-     * {@inheritDoc}
-     */
     public function isBlocking(): bool
     {
         return true;

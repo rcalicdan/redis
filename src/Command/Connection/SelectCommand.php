@@ -19,8 +19,5 @@ use Hibla\Redis\Command\AbstractCommand;
  */
 final class SelectCommand extends AbstractCommand
 {
-    /**
-     * {@inheritDoc}
-     */
     public string $id { get => 'SELECT'; }
 }
