@@ -24,4 +24,9 @@ final class SubscribeCommand extends AbstractCommand
     public string $id {
         get => 'SUBSCRIBE';
     }
+
+    public function isBlocking(): bool
+    {
+        return true;
+    }
 }

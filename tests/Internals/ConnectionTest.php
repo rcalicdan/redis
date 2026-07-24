@@ -11,7 +11,6 @@ use Hibla\Redis\Command\Strings\SetCommand;
 use Hibla\Redis\Enums\ConnectionState;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Internals\Connection;
-use WeakReference;
 
 use function Hibla\await;
 use function Hibla\delay;

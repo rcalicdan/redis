@@ -9,7 +9,6 @@ use Hibla\Redis\Enums\ConnectionState;
 use Hibla\Redis\Exceptions\ConnectionException;
 use Hibla\Redis\Exceptions\RedisException;
 use Hibla\Redis\Internals\CommandRequest;
-use Mockery;
 
 afterEach(function () {
     Mockery::close();

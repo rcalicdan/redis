@@ -25,4 +25,9 @@ final class PsubscribeCommand extends AbstractCommand
     public string $id {
         get => 'PSUBSCRIBE';
     }
+
+    public function isBlocking(): bool
+    {
+        return true;
+    }
 }
